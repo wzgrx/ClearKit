@@ -1,0 +1,26 @@
+{
+  "_说明": "红薯净界（ShuClear）定稿图标，2026-10-20。参数从 crystal_icons.blend 里读出，用来检验流水线能原样复现。",
+  "name": "shuclear",
+  "title": "红薯净界",
+  "render": { "size": 1024, "samples": 512 },
+  "root": { "location": [-0.45, 0, -0.6] },
+  "materials": {
+    "potato": { "type": "crystal", "color": "#FF7A2E", "gradient": ["#FF2D6F", "#FF9A3D"], "glow": 0.6, "transmission": 0.6, "roughness": 0.1, "rim": "#FFE0C2", "rim_glow": 0.45 },
+    "leaf": { "type": "crystal", "color": "#33D18C", "glow": 0.55, "transmission": 0.6, "roughness": 0.1, "rim": "#D8FFEC", "rim_glow": 0.45 },
+    "note": { "type": "crystal", "color": "#4FA8FF", "gradient": ["#3E8BFF", "#A8E2FF"], "glow": 0.35, "transmission": 0.8, "roughness": 0.12, "rim": "#E2F4FF", "rim_glow": 0.32 },
+    "milk": { "type": "milk" }
+  },
+  "parts": [
+    { "id": "body", "shape": "egg", "material": "potato", "location": [-0.15, 0, -0.15], "rotation_deg": [0, -24, 0],
+      "params": { "sx": 1.8, "sy": 0.92, "sz": 0.92, "taper": 0.32, "taper_lin": 0.08, "bumps": [[0.035, 5, 1.3], [0.025, 9, 0]], "lift": 0.12, "segments": [48, 24], "subsurf": 2 } },
+    { "id": "leafA", "shape": "leaf", "material": "leaf", "location": [1.82, -0.05, 1.08], "rotation_deg": [0, 35, 0], "scale": [0.62, 0.62, 0.3] },
+    { "id": "leafB", "shape": "leaf", "material": "leaf", "location": [1.18, -0.05, 1.02], "rotation_deg": [0, -40, 0], "scale": [0.5, 0.5, 0.25] },
+    { "id": "stem", "shape": "cylinder", "material": "leaf", "location": [1.52, -0.02, 0.78], "rotation_deg": [0, -30, 0], "scale": [1, 1, 0.9], "params": { "radius": 0.07, "depth": 0.5 } },
+    { "id": "spark", "shape": "star", "material": "milk", "location": [-0.1, -1.12, -0.12], "params": { "points": 4, "outer": 0.62, "inner": 0.15, "depth": 0.18, "bevel": 0.05 } },
+    { "id": "card", "shape": "slab", "material": "note", "location": [1.15, 1.25, 0.75], "rotation_deg": [0, -10, 0], "params": { "w": 2.6, "h": 3.3, "r": 0.42, "depth": 0.18, "bevel": 0.06 } },
+    { "id": "line0", "shape": "slab", "material": "milk", "parent": "card", "location": [-0.175, -0.05, 1.05], "params": { "w": 1.55, "h": 0.22, "r": 0.08, "depth": 0.06, "bevel": 0.02, "seg": 6 } },
+    { "id": "line1", "shape": "slab", "material": "milk", "parent": "card", "location": [0, -0.05, 0.62], "params": { "w": 1.9, "h": 0.16, "r": 0.07, "depth": 0.06, "bevel": 0.02, "seg": 6 } },
+    { "id": "line2", "shape": "slab", "material": "milk", "parent": "card", "location": [-0.25, -0.05, 0.22], "params": { "w": 1.4, "h": 0.16, "r": 0.07, "depth": 0.06, "bevel": 0.02, "seg": 6 } }
+  ],
+  "android": { "name": "shuclear", "inset": 0.22, "bg_light": "#F5F2EF", "bg_dark": "#303030", "monochrome": true }
+}

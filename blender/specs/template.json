@@ -1,0 +1,18 @@
+{
+  "_说明": "新模块从这里起步：复制成 <模块英文名>.json，按 docs/03-icon-design.md 改主体形状、三组颜色和记号位置。坐标：X 向右、Z 向上、Y 越小越靠前。",
+  "name": "newclear",
+  "title": "新模块",
+  "render": { "size": 1024, "samples": 512 },
+  "root": { "location": [-0.2, 0, -0.3] },
+  "materials": {
+    "body": { "type": "crystal", "color": "#FF7A2E", "gradient": ["#FF2D6F", "#FF9A3D"], "glow": 0.6, "transmission": 0.6, "roughness": 0.1, "rim": "#FFE0C2", "rim_glow": 0.45 },
+    "second": { "type": "crystal", "color": "#4FA8FF", "gradient": ["#3E8BFF", "#A8E2FF"], "glow": 0.35, "transmission": 0.8, "roughness": 0.12, "rim": "#E2F4FF", "rim_glow": 0.32 },
+    "milk": { "type": "milk" }
+  },
+  "parts": [
+    { "id": "card", "shape": "slab", "material": "second", "location": [0.9, 1.2, 0.6], "rotation_deg": [0, -10, 0], "params": { "w": 2.6, "h": 3.0, "r": 0.42, "depth": 0.18 } },
+    { "id": "body", "shape": "egg", "material": "body", "location": [-0.2, 0, -0.2], "params": { "sx": 1.5, "sy": 1.0, "sz": 1.1, "subsurf": 2 } },
+    { "id": "mark", "shape": "star", "material": "milk", "location": [-0.2, -1.2, -0.2], "params": { "outer": 0.6, "inner": 0.15 } }
+  ],
+  "android": { "name": "newclear", "inset": 0.22, "bg_light": "#F5F2EF", "bg_dark": "#303030" }
+}

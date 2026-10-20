@@ -1,0 +1,17 @@
+{
+  "_说明": "SVG 形状示例：小电视轮廓挤出成玻璃机身，屏幕是乳白圆角片，前面一颗星。新模块的宿主意象画不成 egg / slab 时就画一个 SVG。",
+  "name": "svgdemo",
+  "title": "SVG 示例",
+  "render": { "size": 1024, "samples": 512 },
+  "root": { "location": [0, 0, -0.2] },
+  "materials": {
+    "body": { "type": "crystal", "color": "#22C7D6", "gradient": ["#12A4C6", "#6EF0D8"], "glow": 0.5, "transmission": 0.65, "roughness": 0.1, "rim": "#D9FFF8", "rim_glow": 0.4 },
+    "milk": { "type": "milk" }
+  },
+  "parts": [
+    { "id": "tv", "shape": "svg", "material": "body", "params": { "file": "svg/tv.svg", "width": 3.6, "depth": 0.5, "bevel": 0.05 } },
+    { "id": "screen", "shape": "slab", "material": "milk", "location": [0, -0.32, -0.35], "params": { "w": 2.4, "h": 1.35, "r": 0.25, "depth": 0.06, "bevel": 0.03 } },
+    { "id": "spark", "shape": "star", "material": "body", "location": [0, -0.45, -0.35], "params": { "outer": 0.45, "inner": 0.11, "depth": 0.12 } }
+  ],
+  "android": { "name": "svgdemo", "inset": 0.22 }
+}

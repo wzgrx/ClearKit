@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- 红薯净界主题图标线稿示例：笔记卡（描边）+ 两行字 + 红薯（填充，四角星镂空）+ 嫩芽 -->
+  <rect x="30" y="6" width="26" height="34" rx="5" fill="none" stroke="#000" stroke-width="3.6" stroke-linecap="round"/>
+  <line x1="36" y1="14" x2="50" y2="14" stroke="#000" stroke-width="3.6" stroke-linecap="round"/>
+  <line x1="36" y1="21" x2="47" y2="21" stroke="#000" stroke-width="3.6" stroke-linecap="round"/>
+  <path fill-rule="evenodd" d="M8 50 A20 12 -28 1 1 44 31 A20 12 -28 1 1 8 50 Z M24 34 Q25 40 31 41 Q25 42 24 48 Q23 42 17 41 Q23 40 24 34 Z"/>
+  <path d="M44 30 Q46 22 53 21 Q51 28 44 30 Z"/>
+</svg>

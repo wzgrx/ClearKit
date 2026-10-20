@@ -1,0 +1,22 @@
+{
+  "_说明": "红果（短剧 / 影音）试做稿，没有采用（红果映境保留它自己的琉璃胶片图标）。演示 egg 的凹窝、tube 弯管、polygon 播放键。",
+  "name": "guo_trial",
+  "title": "红果试做",
+  "render": { "size": 1024, "samples": 512 },
+  "root": { "location": [0, 0, -0.1] },
+  "materials": {
+    "fruit": { "type": "crystal", "color": "#FF2E63", "gradient": ["#C4002C", "#FF2F52"], "glow": 0.4, "transmission": 0.5, "roughness": 0.1, "rim": "#FF9DB0", "rim_glow": 0.3, "rim_k": 2.2 },
+    "leaf": { "type": "crystal", "color": "#2FD6A6", "glow": 0.55, "transmission": 0.6, "roughness": 0.1, "rim": "#D8FFEC", "rim_glow": 0.45 },
+    "card": { "type": "crystal", "color": "#2FD6B0", "gradient": ["#00B89A", "#6AD4FF"], "glow": 0.45, "transmission": 0.75, "roughness": 0.14, "rim": "#D6FFF6", "rim_glow": 0.35 },
+    "milk": { "type": "milk" }
+  },
+  "parts": [
+    { "id": "fruit", "shape": "egg", "material": "fruit", "location": [-0.1, 0, -0.2],
+      "params": { "sx": 1.25, "sy": 1.15, "sz": 1.18, "dent_top": { "depth": 0.22, "radius": 0.28 }, "squash": 0.06, "point": 0.05, "segments": [48, 32], "subsurf": 1 } },
+    { "id": "stem", "shape": "tube", "material": "leaf", "params": { "points": [[-0.1, 0.75], [0.0, 1.15], [0.15, 1.45]], "radius": 0.08 } },
+    { "id": "leaf", "shape": "leaf", "material": "leaf", "location": [0.72, -0.02, 1.38], "rotation_deg": [0, -22, 0], "scale": [0.7, 0.7, 0.36] },
+    { "id": "play", "shape": "polygon", "material": "milk", "location": [-0.05, -1.32, -0.2], "params": { "points": [[-0.32, 0.42], [-0.32, -0.42], [0.42, 0.0]], "depth": 0.2, "bevel": 0.09 } },
+    { "id": "card", "shape": "slab", "material": "card", "location": [0.15, 1.3, -0.1], "rotation_deg": [0, -8, 0], "params": { "w": 4.0, "h": 2.3, "r": 0.45, "depth": 0.18, "bevel": 0.06 } }
+  ],
+  "android": { "name": "guotrial", "inset": 0.22 }
+}
