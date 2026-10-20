@@ -20,7 +20,7 @@
 3. 把源码目录 io/github/clearkit/starter 挪到新包名对应的目录；
 4. 检查替换干净了（还剩占位就报错），打印下一步。
 
-生成后：cd 到 --out，`git init`，按新项目的 AGENTS.md 和 docs/TASKS.md 开始。
+生成后：cd 到 --out，`git init`、`git config core.hooksPath .githooks`（启用提交前护栏），按新项目的 AGENTS.md 和 docs/TASKS.md 开始。
 """
 import argparse
 import os
@@ -176,7 +176,7 @@ def main() -> None:
     print("下一步：")
     if not dexadapt.is_dir():
         print(f"  0. 没找到 {dexadapt}：DexAdapt 要和项目并排放（见 ClearKit docs/10-environment.md「DexAdapt」）")
-    print(f"  1. cd {out} && git init && git add -A && git commit -m '从 ClearKit 模板生成'")
+    print(f"  1. cd {out} && git init && git config core.hooksPath .githooks && git add -A && git commit -m '从 ClearKit 模板生成'")
     print("  2. scripts/verify.sh --fast   # 应该全部通过")
     if not a.launch_activity:
         print("  3. 宿主启动页类名还没填：按 ClearKit docs/11-cookbook.md「查启动页类名」改 ExampleSymbols.kt")

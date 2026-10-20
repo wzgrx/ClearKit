@@ -11,15 +11,23 @@
 | 加了设置没人读（空开关） | 用户打开了什么都不发生 | `AllFeaturesTest`：功能页里的设置在 `hook/features` 源码里搜不到就失败 |
 | 加了设置忘了画示意图 | 实物预览缺块 | `PreviewCoverageTest`、`PagePreviewsTest.everyFeaturePageHasADiagram` |
 | 改了符号没重新生成 | 编译用旧访问器、手机上找不到 | `SymbolTablesTest`（访问器过期就失败）、`SymbolCatalogTest` |
-| 手改生成的文件 | 下次生成被覆盖 | `AGENTS.md` 第 1 节列明；生成文件开头写“不要手改” |
-| 改了框架代码（runtime） | 全部功能出问题 | `AGENTS.md` 标“不改”；任务卡写明“只改这些文件” |
-| 为了让测试过去改测试 | 问题被藏起来 | `AGENTS.md` 明令禁止；维护者审提交时看 `src/test` 的改动 |
+| 手改生成的文件 | 下次生成被覆盖 | `scripts/guard.sh`：生成文件改了、符号定义没改就失败 |
+| 改了框架代码（runtime） | 全部功能出问题 | `scripts/guard.sh`：`hook/runtime`、`tools`、`scripts`、构建脚本有改动就失败（维护者用 `GUARD_ALLOW=1` 放行） |
+| 为了让测试过去改测试 | 问题被藏起来 | `scripts/guard.sh`：`@Test` 数量变少、新加 `@Ignore` / `@Disabled` / `assumeTrue(false)` 就失败 |
+| 提交签名密钥、口令文件 | 密钥泄露 | `scripts/guard.sh`：`.jks`、`.keystore`、`signing.env` 这类文件进暂存区就失败 |
+| 任务卡写得缺项 | 下一个模型不知道改哪、怎么算完成 | `scripts/check_tasks.py`：缺级别、要读、改的文件、完成标准，或同时两张“进行中”就失败 |
 | 一次改太多 | 出错找不到原因 | 一张任务卡只做一件事；做完必须跑 `scripts/verify.sh` 再提交 |
 | 没验证就说“完成了” | 维护者被误导 | 报告格式（08 第 4 节）要求贴命令和结果；STATUS.md 记“上次验证” |
 | 卡住后乱试 | 越改越坏 | 试两次不行就停，写进 STATUS.md“需要维护者” |
 | 不知道项目做到哪了 | 重复做、做错方向 | 每次先读 `docs/STATUS.md` 和 `docs/TASKS.md` |
 
-原则：**能用测试挡的错误就不靠文档提醒**；测试失败信息直接写“该怎么改”，弱模型照着改就行。
+原则：**能用测试和脚本挡的错误就不靠文档提醒**（文档对模型只是建议，脚本才是硬约束）；失败信息直接写“该怎么改”，弱模型照着改就行。
+`scripts/guard.sh` 和 `check_tasks.py` 在 `scripts/verify.sh` 一开头就跑，也装成提交前钩子（`git config core.hooksPath .githooks`），
+不跑验证直接提交也拦得住。
+
+文档也按“离代码近、短、命令在前”写：根目录 `AGENTS.md` 只放命令、每次工作的流程和硬规则；`core/model`、`core/symbols`、
+`hook/features`、`hook/runtime`、`app` 各有一份几行长的 `AGENTS.md`，说这个目录里怎么做、什么不能碰（模型改哪个目录就读那里的）。
+`CLAUDE.md` 只有一行 `@AGENTS.md`，Claude Code 也读同一份。
 
 ## 2. 能力分级：什么活给谁
 

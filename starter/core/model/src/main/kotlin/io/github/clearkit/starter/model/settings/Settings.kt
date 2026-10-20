@@ -32,6 +32,13 @@ object Settings {
 
     /** 示例分组“去广告与精简”：换成你的功能。示例功能见 hook/features/.../example/。 */
     object Cleanup : SettingGroup("cleanup") {
+        /** 通用（任何宿主都能用，不依赖宿主版本）：第三方广告联盟 SDK 的加载和展示（AdSdkFeature）。 */
+        val adSdk = bool(
+            "adSdk", false, "拦截广告联盟的广告",
+            "穿山甲、广点通、快手、百度等广告联盟的开屏、插屏、激励视频不再加载。个别 App 的开屏可能多等几秒", restart = true,
+        )
+        /** 通用：摇一摇跳转广告（ShakeAdFeature）。 */
+        val shakeJump = bool("shakeJump", true, "摇一摇不跳转广告", "广告联盟的“摇一摇打开”不再响应；App 自己的摇一摇功能不受影响", restart = true)
         /** 示例：改接口数据（ExampleJsonRuleFeature）。 */
         val exampleAds = bool("exampleAds", true, "去掉示例广告", "接口返回的数据里去掉标了广告的条目（示例：JSON 规则）")
         /** 示例：多选（选上 = 隐藏）。 */

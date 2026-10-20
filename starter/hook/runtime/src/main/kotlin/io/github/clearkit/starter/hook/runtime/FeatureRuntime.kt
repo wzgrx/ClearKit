@@ -434,6 +434,9 @@ class FeatureRuntime(
             InstallRecorder.record(handle::unhook)
         }
 
+        override fun deoptimize(target: Executable): Boolean =
+            runCatching { xposed.deoptimize(target) }.onFailure { ModuleLog.w("deoptimize failed: $target", it) }.getOrDefault(false)
+
         override fun onApplication(block: (Application) -> Unit) = whenApplication { app ->
             try {
                 block(app)

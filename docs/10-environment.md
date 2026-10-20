@@ -72,7 +72,7 @@ git clone https://github.com/wzgrx/ClearKit.git clear-kit   # 也是私有仓库
 python3 clear-kit/tools/new_module.py --out ~/projects/foo-clear \
   --name 某某净界 --host 某某 --host-package com.foo.app \
   --package io.github.wzgrx.fooclear --code FooClear --repo wzgrx/FooClear
-cd foo-clear && git init && git add -A && git commit -m "从 ClearKit 模板生成"
+cd foo-clear && git init && git config core.hooksPath .githooks && git add -A && git commit -m "从 ClearKit 模板生成"
 scripts/verify.sh --fast     # 检查：最后一行“本地验证通过”
 scripts/verify.sh            # 检查：同上，还会打出 release 包
 ```

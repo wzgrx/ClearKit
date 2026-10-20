@@ -30,7 +30,7 @@
    ```
 
    **判断**：输出“已生成 …”，没有“错误：还有没替换的占位”。
-3. `cd` 进去，`git init && git add -A && git commit -m "从 ClearKit 模板生成"`，然后 `scripts/verify.sh`。
+3. `cd` 进去，`git init && git config core.hooksPath .githooks && git add -A && git commit -m "从 ClearKit 模板生成"`，然后 `scripts/verify.sh`。
    **判断**：最后一行“本地验证通过”。不通过：多半是环境（看 [10](10-environment.md)），不要改代码去凑。
 4. 按新项目 `docs/TASKS.md` 的 T01、T02 做（宿主安装包、第一个接口）。
 5. 图标按第 1 节做；做好以后替换模板的占位图标（`app/src/main/res/drawable-nodpi/ic_module_art.png` 等）。

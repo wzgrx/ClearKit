@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+# 提交前检查改动有没有越界（scripts/guard.sh）。启用：git config core.hooksPath .githooks
+exec "$(git rev-parse --show-toplevel)/scripts/guard.sh" --staged

@@ -18,6 +18,7 @@
 11. 写单元测试（L1）
 12. 加一个渠道（国际版、谷歌商店版……）（L2）
 13. 准备发布（L1，发布本身要维护者同意）
+14. 通用去广告：广告联盟 SDK、摇一摇跳转（L1）
 
 ---
 
@@ -215,6 +216,12 @@ object FeedAdsFeature : Feature("cleanup.feedAds", "去掉信息流广告") {
 - 不要 `try { } catch (e: Throwable) { }` 包住全部：框架会记录失败、回落到原方法、连续失败自动停用。
 - 登记到 `AllFeatures.list`；**检查**：`scripts/verify.sh`，真机上 App 的“功能运行情况”里这个功能是“生效”。
 
+**钩子挂上了却从来不触发**（功能显示“生效”，效果没有），按顺序排查：
+1. 宿主有好几个入口，你挂的那个没走（JSON 解析就踩过：同一个库有好几个重载）。在反编译源码里看调用方，换一个或都挂上。
+2. 方法太短，被 ART 内联进调用它的地方了：在 install 里先 `deoptimize(方法)` 再挂（对调用它的方法也可以），有一点性能开销，确认是内联再用。
+3. 宿主的子类重写了这个方法（系统服务常见）：挂子类的方法。
+4. libxposed API 101 起不能 Hook 资源（布局、字符串），只能 Hook 代码；改界面用第 10 节的办法。
+
 ## 10. 隐藏一个界面元素（L2）
 
 能在数据里删就删（第 4 节），删不了再改界面。宿主的控件 id 名通常不混淆，按名字找：
@@ -227,11 +234,12 @@ object HideShopButtonFeature : Feature("cleanup.shopButton", "隐藏商城按钮
     private val done = java.util.Collections.newSetFromMap(java.util.WeakHashMap<android.view.View, Boolean>())
 
     override fun FeatureScope.install() {
-        HostActivities.onResumed { activity ->
-            if (!settings[Settings.Cleanup.hideShop]) return@onResumed
+        // 用功能自己的页面回调（不是 HostActivities.onResumed）：这里出错会记到这个功能上，安装失败时自动撤销
+        onActivityResumed { activity ->
+            if (!settings[Settings.Cleanup.hideShop]) return@onActivityResumed
             val id = activity.resources.getIdentifier("shop_entry", "id", activity.packageName)   // 名字从反编译的 res/layout 里查
-            if (id == 0) return@onResumed
-            val view = activity.findViewById<android.view.View>(id) ?: return@onResumed
+            if (id == 0) return@onActivityResumed
+            val view = activity.findViewById<android.view.View>(id) ?: return@onActivityResumed
             view.visibility = android.view.View.GONE
             // 宿主自己会把它改回来：布局变化后再藏一次（每个控件只加一次监听）
             if (done.add(view)) view.viewTreeObserver.addOnGlobalLayoutListener {
@@ -285,3 +293,30 @@ class BannerRulesTest {
 4. 真机装上看一遍（冒烟 `scripts/smoke.sh <设备>`）。
 5. **问维护者**，同意后：`gh release create v<版本> --repo <仓库> -F <说明文件> app/build/outputs/apk/release/app-release.apk`。
 6. 更新 `docs/STATUS.md`。
+
+**上架 LSPosed 官方模块仓库**（modules.lsposed.org，用户能在 LSPosed 管理器里直接下载更新；公开发布，**必须维护者决定**）：
+- 包名要用自己的域名，或者 `io.github.<GitHub 用户名>` 开头（模板生成时的 `--package` 照这个写就行）。
+- 在 `Xposed-Modules-Repo/submission` 提 issue，标题 `[submission] <包名>`；机器人会建一个同名仓库并邀请你维护。
+- 那个仓库里只放 `README.md`（完整介绍）和 `SUMMARY`（一句话），**不放源码**；仓库描述写模块名，主页写反馈地址。
+- 每次发布在那个仓库建 Release：**标签 `<versionCode>-<versionName>`**（例如 `3-0.2.0`），标题是版本名，内容是更新说明，
+  附上安装包。只改安装包、不重新建 Release，机器人发现不了。
+
+## 14. 通用去广告：广告联盟 SDK、摇一摇跳转（L1）
+
+模板自带两个**不依赖宿主版本**的功能（`hook/features/.../cleanup/adsdk/`），任何宿主都能直接用，不用写查询：
+
+- **拦截广告联盟的广告**（`AdSdkFeature`，默认关）：穿山甲、广点通、快手、百度、Mintegral、Sigmob、TopOn 等 SDK 的
+  “加载 / 展示 / 是否就绪”直接拦掉。宿主没接入任何已知 SDK 时，功能状态显示“不支持”。
+  有的 App 开屏要等 SDK 回调超时才进首页（多等几秒），所以默认关；在真机上试过没问题再改成默认开。
+- **摇一摇不跳转广告**（`ShakeAdFeature`，默认开）：广告 SDK 注册传感器监听时换成空监听，摇了没反应；宿主自己的摇一摇不受影响。
+
+先看宿主接了哪些 SDK：
+
+```bash
+jadx -d /tmp/x --no-res $HOST_APK_DIR/main-<versionCode>/base.apk >/dev/null 2>&1
+ls /tmp/x/sources/com/bytedance/sdk/openadsdk /tmp/x/sources/com/qq/e /tmp/x/sources/com/kwad /tmp/x/sources/com/baidu/mobads 2>/dev/null | head
+```
+
+名单里没有的 SDK：在 `core/model/.../adsdk/AdSdks.kt` 的 `PREFIXES` 加包名前缀，`ENTRY_CLASSES` 加加载 / 展示入口类
+（从反编译源码里找宿主调用的那个类，类名必须没混淆），跑 `scripts/verify.sh --fast`（`AdSdksTest`）。
+思路参考 [Shuoh118/Ads-kill](https://github.com/Shuoh118/Ads-kill)（MIT）。

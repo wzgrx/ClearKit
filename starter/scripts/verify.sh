@@ -9,6 +9,9 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 [[ -f "${MODULE_ENV:-$HOME/.config/clearstarter/env.sh}" ]] && source "${MODULE_ENV:-$HOME/.config/clearstarter/env.sh}"
 : "${ANDROID_HOME:?没设 ANDROID_HOME（Android SDK 目录），见 ClearKit docs/10-environment.md}"
+# 先查改动有没有越界、任务卡格式对不对（几秒钟，失败信息会说怎么改）
+scripts/guard.sh
+python3 scripts/check_tasks.py
 fast=false; release=false
 [[ "${1:-}" == "--fast" ]] && fast=true
 [[ "${1:-}" == "--release" ]] && release=true

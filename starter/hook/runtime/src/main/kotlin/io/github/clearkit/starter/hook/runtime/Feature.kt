@@ -75,6 +75,13 @@ interface FeatureScope {
      */
     fun hookAlways(target: java.lang.reflect.Executable, body: (HookCall) -> Any?)
 
+    /**
+     * 让 ART 不再内联、优化 [target]（libxposed 的 deoptimize）。很短的方法常被内联进调用它的地方，
+     * 钩子挂上了却从来不触发时，对它（或调用它的方法）调一次。有性能开销，只在确认被内联时用。返回是否成功。
+     * 默认不做（测试里的假 scope 不用实现）。
+     */
+    fun deoptimize(target: java.lang.reflect.Executable): Boolean = false
+
     /** Runs once the host Application has been created (immediately if it already was). */
     fun onApplication(block: (Application) -> Unit)
 

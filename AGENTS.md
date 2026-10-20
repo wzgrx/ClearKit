@@ -23,7 +23,8 @@
   `shuclear.json` 出来的图要和 `examples/family/shuclear.png` 一致（形状、颜色、位置）。
 - 改了 `tools/svg2vector.py`：用 `blender/specs/svg/` 下的 SVG 转一遍，输出要是合法 XML、坐标在画布内。
 - 改了 `starter/` 或 `tools/new_module.py`：用生成脚本生成一个临时项目（`--out /tmp/...` 以外的目录要和 `dexadapt` 并排），
-  在里面跑 `scripts/verify.sh`，必须通过；然后删掉临时项目。模板里不能出现任何具体宿主（哔哩哔哩、小红书……）的代码和文字，
+  在里面 `git init`、提交一次，跑 `scripts/verify.sh`，必须通过；改了护栏（`scripts/guard.sh`）还要故意做一次越界改动，确认它会报错；
+  然后删掉临时项目。模板里不能出现任何具体宿主（哔哩哔哩、小红书……）的代码和文字，
   占位只用 `【模块】`、`【宿主】`、`com.example.host`、`io.github.clearkit.starter`、`ClearStarter`。
 - `docs/11-cookbook.md` 里的代码改了：贴进生成的临时项目编译一遍。
 - 文档里的命令改了要实际跑一遍。

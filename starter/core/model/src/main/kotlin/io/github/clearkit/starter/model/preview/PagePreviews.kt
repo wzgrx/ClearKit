@@ -270,6 +270,7 @@ object PagePreviews {
             listOf(
                 group("【宿主】首页", listOf(plain("推荐内容"), hide("广告条目", c.exampleAds), plain("推荐内容"))),
                 group("顶部入口", options(c.exampleHide, c.exampleHide.choices.map { it.id to it.label })),
+                group("广告联盟（任何 App 通用）", listOf(hide("开屏、插屏、激励视频", c.adSdk), hide("摇一摇跳转", c.shakeJump))),
             ),
             "示例页：换成【宿主】真实的界面结构",
         ),

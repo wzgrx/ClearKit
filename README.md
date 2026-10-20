@@ -25,6 +25,7 @@
 | 装开发环境（从空电脑开始） | [docs/10-environment.md](docs/10-environment.md) |
 | 加设置、写规则、写查询、挂方法……的逐步做法 | [docs/11-cookbook.md](docs/11-cookbook.md) |
 | 让能力一般的模型接手（任务卡、护栏、交接） | [docs/09-low-capability-models.md](docs/09-low-capability-models.md) |
+| 外部参考（libxposed、LSPosed、DexKit、同类项目） | [docs/references.md](docs/references.md) |
 | 检查清单 | [docs/checklists/](docs/checklists/) |
 
 ## 一条命令生成新模块
@@ -32,11 +33,12 @@
 ```bash
 python3 tools/new_module.py --out ~/projects/foo-clear --name 某某净界 --host 某某 \
   --host-package com.foo.app --package io.github.wzgrx.fooclear --code FooClear --repo wzgrx/FooClear
-cd ~/projects/foo-clear && git init && git add -A && git commit -m "从 ClearKit 模板生成"
+cd ~/projects/foo-clear && git init && git config core.hooksPath .githooks && git add -A && git commit -m "从 ClearKit 模板生成"
 scripts/verify.sh        # 单测 + lint + release 包，第一次就应该通过
 ```
 
-生成的项目带：两个示例功能（改接口 JSON 去广告、按特征找到方法挂钩子）、模块 App（功能页按设置自动生成、实物预览、
+生成的项目带：两个示例功能（改接口 JSON 去广告、按特征找到方法挂钩子）、两个任何宿主都能用的通用去广告功能
+（广告联盟 SDK、摇一摇跳转）、改动护栏（`scripts/guard.sh`，拦住改框架、删测试、手改生成文件、提交密钥）、模块 App（功能页按设置自动生成、实物预览、
 本机适配、诊断、备份）、宿主里的设置窗、门禁和冒烟脚本、给 AI 的 `AGENTS.md` 和交接文件 `docs/STATUS.md`、`docs/TASKS.md`。
 需要 DexAdapt 和项目并排放（`~/projects/dexadapt`，见 [docs/10](docs/10-environment.md) 第 4 节）。
 

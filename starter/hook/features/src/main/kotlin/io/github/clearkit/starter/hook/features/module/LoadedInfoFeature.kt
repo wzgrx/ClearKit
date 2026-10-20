@@ -4,7 +4,6 @@ import io.github.clearkit.starter.hook.features.entries.HostSettingsSheet
 import io.github.clearkit.starter.hook.runtime.Feature
 import io.github.clearkit.starter.hook.runtime.FeatureRuntime
 import io.github.clearkit.starter.hook.runtime.FeatureScope
-import io.github.clearkit.starter.hook.runtime.HostActivities
 import io.github.clearkit.starter.hook.ui.HostToast
 import io.github.clearkit.starter.model.settings.Settings
 
@@ -20,8 +19,8 @@ object LoadedInfoFeature : Feature("module.loadedInfo", "提示模块运行信�
     private var shown = false
 
     override fun FeatureScope.install() {
-        HostActivities.onResumed { activity ->
-            if (shown) return@onResumed
+        onActivityResumed { activity ->
+            if (shown) return@onActivityResumed
             shown = true
             activity.window.decorView.postDelayed({ show(activity) }, 1500)
         }

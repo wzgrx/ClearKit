@@ -24,6 +24,9 @@ object AllFeatures {
             LoadedInfoFeature,
             NetPipeline,
         ) + netRules + listOf(
+            // 通用去广告（不依赖宿主版本）
+            io.github.clearkit.starter.hook.features.cleanup.adsdk.AdSdkFeature,
+            io.github.clearkit.starter.hook.features.cleanup.adsdk.ShakeAdFeature,
             ExampleHookFeature,
         )
     }
