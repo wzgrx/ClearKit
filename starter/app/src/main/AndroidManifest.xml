@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <!-- 模块更新（设计 035）：下载并核对签名后交给系统安装器。 -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+
+    <!-- 宿主的包名（每个渠道一行），Android 11+ 要声明才看得见。生成脚本替换。 -->
+    <queries>
+        <package android:name="com.example.host" />
+    </queries>
+
+    <!--
+        allowBackup=false，Android 12 起再用 dataExtractionRules 把云备份和换机迁移都排除（配置走模块自己的备份）。
+        dataExtractionRules（31+）、enableOnBackInvokedCallback（33+）在低版本上被忽略（lint UnusedAttribute）。
+    -->
+    <application
+        android:name=".app.ModuleApp"
+        android:allowBackup="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:description="@string/module_description"
+        android:enableOnBackInvokedCallback="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.ClearStarter"
+        tools:ignore="UnusedAttribute,DataExtractionRules">
+
+        <activity
+            android:name=".app.MainActivity"
+            android:exported="true"
+            android:launchMode="singleTop"
+            android:windowSoftInputMode="adjustResize">
+            <!-- LSPosed 管理器的模块入口：隐藏桌面图标后仍能从这里打开。 -->
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="de.robv.android.xposed.category.MODULE_SETTINGS" />
+            </intent-filter>
+        </activity>
+
+        <!-- 桌面图标：单独的别名，“隐藏桌面图标”停用它（LauncherIcon）。 -->
+        <activity-alias
+            android:name=".app.Launcher"
+            android:enabled="true"
+            android:exported="true"
+            android:targetActivity=".app.MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+
+        <!--
+            从【宿主】、通知打开的单页。【宿主】不加 NEW_TASK 启动它，它就在【宿主】的任务里，返回一次回到原页面；
+            taskAffinity 为空，必须开新任务时也不会混进桌面上的 App 任务。
+        -->
+        <activity
+            android:name=".app.RouteActivity"
+            android:autoRemoveFromRecents="true"
+            android:exported="true"
+            android:launchMode="singleTop"
+            android:taskAffinity=""
+            android:windowSoftInputMode="adjustResize" />
+
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.files"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/shared_paths" />
+        </provider>
+        <activity
+            android:name=".app.bridge.HandshakeActivity"
+            android:excludeFromRecents="true"
+            android:exported="true"
+            android:noHistory="true"
+            android:taskAffinity=""
+            android:theme="@android:style/Theme.NoDisplay" />
+
+        <!-- 桥接：只回应【宿主】的 UID，见 BridgeProvider.callerIsHost。 -->
+        <provider
+            android:name=".app.bridge.BridgeProvider"
+            android:authorities="io.github.clearkit.starter.bridge"
+            android:exported="true"
+            tools:ignore="ExportedContentProvider" />
+
+        <!-- 模块更新后检查一次适配（查询变了时本机表要重扫）。 -->
+        <receiver
+            android:name=".app.adapt.HostAdapter$UpdateReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+
+        <!-- 本机适配的扫描任务进前台时用的服务类型（WorkManager）。 -->
+        <service
+            android:name="androidx.work.impl.foreground.SystemForegroundService"
+            android:foregroundServiceType="dataSync"
+            tools:node="merge" />
+    </application>
+</manifest>

@@ -1,7 +1,15 @@
 # 06 · 模块代码结构
 
-所有净界模块用同一套分层。参考实现：哔哩净界（wzgrx/BiliClear，最完整）、红薯净界（wzgrx/ShuClear）。
-新模块从参考实现复制骨架，再把宿主相关的部分换掉。
+所有净界模块用同一套分层。**新模块不要手工复制**：用 ClearKit 的模板生成（`starter/` 是从哔哩净界抽出来的通用骨架，
+去掉了哔哩哔哩专用的东西，带两个示例功能，生成出来就能构建、测试全过）：
+
+```bash
+python3 tools/new_module.py --out ~/projects/foo-clear --name 某某净界 --host 某某 \
+  --host-package com.foo.app --package io.github.wzgrx.fooclear --code FooClear --repo wzgrx/FooClear
+```
+
+环境准备见 [10-environment.md](10-environment.md)，常见开发任务的逐步做法见 [11-cookbook.md](11-cookbook.md)。
+完整的参考实现：哔哩净界（wzgrx/BiliClear，功能最全）、红薯净界（wzgrx/ShuClear）。
 
 ## 目录
 
@@ -20,11 +28,11 @@ scripts/             verify.sh（门禁）、smoke.sh（真机冒烟）、signin
 
 ## 共享的和每个模块自己写的
 
-| 共享（从参考实现复制，改包名就能用） | 每个模块自己写 |
+| 共享（模板里已经有） | 每个模块自己写 |
 |---|---|
 | `hook/runtime` 全部：Feature / FeatureScope / HookCall、熔断、崩溃保护、安全模式、日志脱敏、桥接客户端、宿主页面跟踪 | `core/symbols`：宿主的类和方法 |
 | `core/model` 的设置框架（SettingGroup、各种 Setting、SettingsReader）、实物预览模型（PagePreviews 的类型和函数） | 设置项本身、每页的示意图数据 |
-| 网络改写管道（NetPipeline：JSON 各解析入口、gRPC、规则模型） | 每个功能的规则和 Hook |
+| 网络改写管道（NetPipeline：fastjson / Gson / kotlinx 解析入口、JSON 规则模型；gRPC 在 BiliClear 里，需要时照搬） | 每个功能的规则和 Hook |
 | App 外壳：页签、页面骨架、组件库、主题框架、设置窗、备份、诊断页、桥接服务端 | 强调色、首页那句统计、专属预览 |
 | 门禁脚本、截图测试、冒烟脚本、发版步骤 | 支持的宿主版本 |
 
@@ -42,7 +50,7 @@ scripts/             verify.sh（门禁）、smoke.sh（真机冒烟）、signin
 5. **优先改数据**：广告、推荐这类优先在网络回复里改（JSON / gRPC 规则），宿主拿不到数据就不建控件；
    控件层的拦截作兜底（只在数据里真有广告时动手，记数，提示规则漏了）。
 6. **纯函数 + 单测**：过滤判断、文本处理、协议解析放进 `core/model` 写测试。
-7. **设置和预览**：新设置加在对应分组；在 PagePreviews 里画进示意图（覆盖测试会检查）；App 页面里加行；`scripts/gen_setting_routes.py` 重新生成路由表。
+7. **设置和预览**：新设置加在对应分组；在 PagePreviews 里画进示意图（覆盖测试会检查）。模板的 App 功能页按设置分组自动生成，不用加行（BiliClear 是手写页面，那边还要在页面里加行、重新生成路由表）。
 
 ## 宿主和 App 怎么通信
 

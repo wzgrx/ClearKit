@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 交给别的应用的文件：更新安装包、分享的诊断报告。只开放这两个子目录。 -->
+<paths>
+    <cache-path name="update" path="update/" />
+    <cache-path name="share" path="share/" />
+</paths>

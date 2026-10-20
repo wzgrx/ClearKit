@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 界面全部是 Compose；这里只管启动窗口的底色，避免冷启动闪白 / 闪黑。 -->
+    <style name="Theme.ClearStarter" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">#F7F6F3</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+    </style>
+</resources>

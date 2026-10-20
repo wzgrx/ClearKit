@@ -15,7 +15,8 @@
 - [ ] 宿主进程里的小图（`brand_mark_192.png` 放进 hook 的 Java 资源）
 
 ## 代码骨架
-- [ ] 从参考实现复制共享部分，改包名、应用名
+- [ ] `tools/new_module.py` 生成项目；`scripts/verify.sh` 第一次就通过
+- [ ] `docs/STATUS.md`、`docs/TASKS.md` 写好第一批任务卡（格式见 docs/09）
 - [ ] DexAdapt 引用固定提交（`gradle/dexadapt.commit`）
 - [ ] `AGENTS.md`（模板 `templates/AGENTS.module.md`）、`CHANGELOG.md`
 

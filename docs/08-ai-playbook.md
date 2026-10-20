@@ -3,6 +3,11 @@
 这一篇写给**执行任务的 AI**（包括能力一般的模型）。照着做，不需要自己发明流程。
 每一步写了：做什么、用什么命令、怎么判断做对了、做错了怎么办。
 
+- 在已有模块里干活：先读那个项目的 `AGENTS.md`、`docs/STATUS.md`、`docs/TASKS.md`，**一次只做一张任务卡**。
+- 具体怎么写代码：[11-cookbook.md](11-cookbook.md)（加设置、写 JSON 规则、写查询、挂方法……每个都有可照抄的代码）。
+- 环境没装好：[10-environment.md](10-environment.md)。
+- 维护者怎么给你拆任务、哪些事你不该做：[09-low-capability-models.md](09-low-capability-models.md)。
+
 ## 0. 总规则（每一步都适用）
 
 1. **先读后写**：改任何文件前先读它；改模块代码前读那个仓库的 `AGENTS.md`。
@@ -11,6 +16,26 @@
 4. **不说没验证过的话**：报告里“已完成”只写真正跑过、看过结果的；没测到的写“没测到”和原因。
 5. 所有文案、文档、提交信息用中文；说明写人话，不写代码名（必要时括号里附上）。
 6. 不碰：签名私钥、账号令牌、`.env`；不做绕过付费的功能；会替账号操作的功能测试时不打开。
+
+## 0.5 任务：从零开始一个新模块
+
+**输入**：宿主名、宿主包名、模块名（已确认）、GitHub 仓库名。
+
+1. 按 [10](10-environment.md) 第 1–4 节装好环境（JDK、SDK、DexAdapt 并排放）。
+2. 生成项目（参数说明：`python3 tools/new_module.py --help`）：
+
+   ```bash
+   python3 tools/new_module.py --out ~/projects/<英文名小写> --name <模块名> --host <宿主名> \
+     --host-package <宿主包名> --package io.github.<所有者>.<英文名小写> --code <英文名大驼峰> --repo <所有者>/<仓库名>
+   ```
+
+   **判断**：输出“已生成 …”，没有“错误：还有没替换的占位”。
+3. `cd` 进去，`git init && git add -A && git commit -m "从 ClearKit 模板生成"`，然后 `scripts/verify.sh`。
+   **判断**：最后一行“本地验证通过”。不通过：多半是环境（看 [10](10-environment.md)），不要改代码去凑。
+4. 按新项目 `docs/TASKS.md` 的 T01、T02 做（宿主安装包、第一个接口）。
+5. 图标按第 1 节做；做好以后替换模板的占位图标（`app/src/main/res/drawable-nodpi/ic_module_art.png` 等）。
+
+**完成的标准**：新项目 `scripts/verify.sh` 通过；GitHub 上建好私有仓库并推上去（建仓库前问维护者）。
 
 ## 1. 任务：给新模块做图标
 
@@ -57,7 +82,7 @@
 
 ## 2. 任务：给已有模块加一个功能
 
-1. 读模块的 `AGENTS.md`、[06-module-architecture.md](06-module-architecture.md)。
+1. 读模块的 `AGENTS.md`、[06-module-architecture.md](06-module-architecture.md)、[11-cookbook.md](11-cookbook.md) 对应的菜谱。
 2. 在宿主的反编译源码里找 Hook 点：先搜界面上的文字（`grep -rn "界面上的字"`）、接口路径、类名关键词。
 3. 判断改哪层：**能在接口数据里改的就改数据**（JSON / gRPC 规则）；改不了再 Hook 方法。
 4. 写查询 → 重新生成符号表 → 确认每个内置版本 `0 missing`。

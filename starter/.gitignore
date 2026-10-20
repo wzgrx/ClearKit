@@ -1,0 +1,13 @@
+*.apk
+*.apks
+*.idsig
+*.keystore
+*.jks
+build/
+.gradle/
+.kotlin/
+local.properties
+hs_err_pid*.log
+.idea/
+*.iml
+.claude/

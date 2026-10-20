@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 模板占位：自适应图标前景。按比例内缩 22%，任何遮罩形状都留在安全区里。由 clear-kit/blender/build_icon.py 生成。 -->
+<inset xmlns:android="http://schemas.android.com/apk/res/android"
+    android:insetLeft="22%" android:insetRight="22%"
+    android:insetTop="22%" android:insetBottom="22%">
+    <bitmap android:src="@drawable/ic_module_art"
+        android:gravity="fill" android:filter="true" android:antialias="true" />
+</inset>

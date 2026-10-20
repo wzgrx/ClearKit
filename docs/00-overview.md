@@ -38,8 +38,9 @@
 | 7 真机 | 冒烟、逐项验证，测完把改过的设置还原 | 冒烟通过，每个新功能有真机结论 |
 | 8 发版 | 更新日志、版本号、打标签、上传安装包 | GitHub Release 有安装包；发版前问过维护者 |
 
-## 参考实现
+## 模板和参考实现
 
+- **模板（starter/）**：新模块从这里生成（`tools/new_module.py`），能直接构建、测试全过，带两个示例功能和防漏检查。见 [06](06-module-architecture.md)、[10](10-environment.md)、[11](11-cookbook.md)。
 - 哔哩净界（wzgrx/BiliClear）：最完整的参考，实物预览、按用途分类、去广告兜底、观看 / 搜索历史都在这里。
 - 红薯净界（wzgrx/ShuClear）：第二个照这套做的模块，验证了共享部分真的通用。
 - DexAdapt（wzgrx/dexadapt）：通用的版本适配库，所有模块共用。

@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>【模块】版本矩阵</title>
+<style>
+:root { --bg:#f7f7f5; --card:#fff; --text:#1d1d1f; --muted:#6b6b70; --line:#e3e3e0; --accent:#c2410c;
+  --ok:#3f8f5a; --okbg:#e3f2e7; --warn:#a16207; --warnbg:#fdf0d5; --bad:#b42318; --badbg:#fde4e1; --na:#9a9aa0; --nabg:#efefec; }
+@media (prefers-color-scheme: dark) { :root { --bg:#141414; --card:#1e1e1f; --text:#ececec; --muted:#a0a0a6; --line:#33333a; --accent:#fb923c;
+  --ok:#6cc58a; --okbg:#1f3a28; --warn:#f2c14e; --warnbg:#3d3115; --bad:#f2837a; --badbg:#47201d; --na:#77777d; --nabg:#2a2a2d; } }
+* { box-sizing:border-box; }
+body { margin:0; background:var(--bg); color:var(--text); font:14px/1.55 -apple-system,"PingFang SC","Noto Sans CJK SC","Microsoft YaHei",sans-serif; }
+main { max-width:1200px; margin:0 auto; padding:24px 16px 64px; }
+h1 { font-size:22px; margin:0 0 4px; } h2 { font-size:17px; margin:32px 0 10px; }
+.sub { color:var(--muted); margin:0 0 20px; }
+.cards { display:grid; grid-template-columns:repeat(auto-fill,minmax(170px,1fr)); gap:10px; }
+.card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:12px 14px; }
+.card b { display:block; font-size:20px; } .card span { color:var(--muted); font-size:12px; }
+.tools { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:8px 0; }
+input[type=search] { flex:1 1 220px; min-width:0; padding:7px 10px; border:1px solid var(--line); border-radius:8px; background:var(--card); color:var(--text); }
+button.chip { border:1px solid var(--line); background:var(--card); color:var(--text); border-radius:999px; padding:5px 12px; cursor:pointer; font-size:13px; }
+button.chip.on { background:var(--accent); border-color:var(--accent); color:#fff; }
+.scroll { overflow-x:auto; border:1px solid var(--line); border-radius:10px; background:var(--card); }
+table { border-collapse:collapse; width:100%; font-size:13px; }
+th, td { padding:6px 10px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; }
+th { position:sticky; top:0; background:var(--card); cursor:pointer; user-select:none; white-space:nowrap; }
+tr:last-child td { border-bottom:0; }
+code { font:12px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; word-break:break-all; }
+td.cell { text-align:center; white-space:nowrap; font-size:12px; }
+td.id code { white-space:nowrap; word-break:normal; }
+.ok { background:var(--okbg); color:var(--ok); } .warn { background:var(--warnbg); color:var(--warn); }
+.bad { background:var(--badbg); color:var(--bad); } .na { background:var(--nabg); color:var(--na); }
+.legend { display:flex; flex-wrap:wrap; gap:12px; color:var(--muted); font-size:12px; margin:6px 0; }
+.legend i { display:inline-block; width:12px; height:12px; border-radius:3px; margin-right:4px; vertical-align:-2px; }
+details { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:8px 12px; margin:8px 0; }
+summary { cursor:pointer; font-weight:600; } ul { margin:6px 0; padding-left:20px; }
+.muted { color:var(--muted); }
+</style>
+</head>
+<body>
+<main>
+<h1>【模块】版本矩阵</h1>
+<p class="sub"></p>
+<div class="cards"><div class="card"><b>0</b><span>符号</span></div><div class="card"><b>0</b><span>构建</span></div><div class="card"><b>0</b><span>有改名的符号（查询跟上了）</span></div><div class="card"><b>0</b><span>解析不到（各构建合计）</span></div><div class="card"><b>0</b><span>单点依赖的符号</span></div></div><h2>热力图</h2><div class="legend"><span><i class="ok"></i>和上一版位置相同</span><span><i class="warn"></i>改了名，查询跟上了</span><span><i class="bad"></i>解析不到</span><span><i class="na"></i>这个构建没有</span><span>⚠ 单点依赖且只靠形状　· 单点依赖</span><span>鼠标停在格子上看位置</span></div><div data-table><div class="tools"><input type="search" data-filter placeholder="搜索符号 id"><button class="chip" data-chip="drift">有改名</button><button class="chip" data-chip="missing">有缺失</button><button class="chip" data-chip="single">单点依赖</button><span class="muted" data-count></span></div><div class="scroll"><table><thead><tr><th>符号</th></tr></thead><tbody></tbody></table></div></div>
+</main>
+<script>
+document.querySelectorAll('[data-table]').forEach(function (box) {
+  var table = box.querySelector('table'); if (!table) return;
+  var rows = Array.prototype.slice.call(table.tBodies[0].rows);
+  var input = box.querySelector('input[data-filter]');
+  var chips = Array.prototype.slice.call(box.querySelectorAll('button[data-chip]'));
+  var count = box.querySelector('[data-count]');
+  function apply() {
+    var q = input ? input.value.trim().toLowerCase() : '';
+    var on = chips.filter(function (c) { return c.classList.contains('on'); }).map(function (c) { return c.getAttribute('data-chip'); });
+    var shown = 0;
+    rows.forEach(function (r) {
+      var kinds = (r.getAttribute('data-kind') || '').split(' ');
+      var ok = (!q || r.textContent.toLowerCase().indexOf(q) >= 0) && (on.length === 0 || on.some(function (k) { return kinds.indexOf(k) >= 0; }));
+      r.style.display = ok ? '' : 'none'; if (ok) shown++;
+    });
+    if (count) count.textContent = shown + ' / ' + rows.length;
+  }
+  if (input) input.addEventListener('input', apply);
+  chips.forEach(function (c) { c.addEventListener('click', function () { c.classList.toggle('on'); apply(); }); });
+  Array.prototype.forEach.call(table.tHead.rows[0].cells, function (th, i) {
+    var asc = true;
+    th.addEventListener('click', function () {
+      rows.sort(function (a, b) {
+        var x = a.cells[i].getAttribute('data-sort') || a.cells[i].textContent, y = b.cells[i].getAttribute('data-sort') || b.cells[i].textContent;
+        var nx = parseFloat(x), ny = parseFloat(y);
+        var c = (!isNaN(nx) && !isNaN(ny)) ? nx - ny : x.localeCompare(y, 'zh');
+        return asc ? c : -c;
+      });
+      asc = !asc; rows.forEach(function (r) { table.tBodies[0].appendChild(r); });
+    });
+  });
+  apply();
+});
+</script>
+</body>
+</html>

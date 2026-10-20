@@ -4,6 +4,7 @@
 设置界面怎么设计、模块代码怎么分层、从调研到发版每一步做什么、做到什么程度算过关。
 
 目标是：**下一个模块照着这里做，人和 AI 都能直接上手**，做出来和家族里其它模块一个样子，又各有特色。
+能力一般的模型（DeepSeek 等）也能接手：模板自带防漏检查，工作拆成任务卡，每一步有可照抄的代码和能跑的检查命令。
 
 ![家族图标：哔哩净界、红薯净界、红果映境](examples/family/family.png)
 
@@ -17,10 +18,27 @@
 | 设计图标（画什么、怎么构图） | [docs/03-icon-design.md](docs/03-icon-design.md) |
 | 出图标（Blender 一条命令出全套资源） | [docs/04-icon-pipeline.md](docs/04-icon-pipeline.md) |
 | 设计设置界面（实物预览） | [docs/05-live-preview-ui.md](docs/05-live-preview-ui.md) |
+| **开一个新模块（一条命令生成能构建的项目）** | 下面“一条命令生成新模块”、[docs/06-module-architecture.md](docs/06-module-architecture.md) |
 | 模块代码怎么分层 | [docs/06-module-architecture.md](docs/06-module-architecture.md) |
 | 从零到发版的完整流程 | [docs/07-workflow.md](docs/07-workflow.md) |
 | **让 AI 来做（逐步指令、提示词、自检）** | [docs/08-ai-playbook.md](docs/08-ai-playbook.md) 和 [AGENTS.md](AGENTS.md) |
+| 装开发环境（从空电脑开始） | [docs/10-environment.md](docs/10-environment.md) |
+| 加设置、写规则、写查询、挂方法……的逐步做法 | [docs/11-cookbook.md](docs/11-cookbook.md) |
+| 让能力一般的模型接手（任务卡、护栏、交接） | [docs/09-low-capability-models.md](docs/09-low-capability-models.md) |
 | 检查清单 | [docs/checklists/](docs/checklists/) |
+
+## 一条命令生成新模块
+
+```bash
+python3 tools/new_module.py --out ~/projects/foo-clear --name 某某净界 --host 某某 \
+  --host-package com.foo.app --package io.github.wzgrx.fooclear --code FooClear --repo wzgrx/FooClear
+cd ~/projects/foo-clear && git init && git add -A && git commit -m "从 ClearKit 模板生成"
+scripts/verify.sh        # 单测 + lint + release 包，第一次就应该通过
+```
+
+生成的项目带：两个示例功能（改接口 JSON 去广告、按特征找到方法挂钩子）、模块 App（功能页按设置自动生成、实物预览、
+本机适配、诊断、备份）、宿主里的设置窗、门禁和冒烟脚本、给 AI 的 `AGENTS.md` 和交接文件 `docs/STATUS.md`、`docs/TASKS.md`。
+需要 DexAdapt 和项目并排放（`~/projects/dexadapt`，见 [docs/10](docs/10-environment.md) 第 4 节）。
 
 ## 三分钟出一个图标
 
@@ -61,6 +79,8 @@ blender/
   specs/svg/          示例 SVG（小电视轮廓、红薯净界主题图标线稿）
   scenes/             定稿时的 Blender 场景（只作参考）
 tools/svg2vector.py   SVG → Android 矢量图（主题图标、磁贴、通知小图标）
+tools/new_module.py   从 starter/ 生成新模块项目
+starter/              新模块模板（从哔哩净界抽出的通用骨架，能直接构建；改它要按 AGENTS.md 的规则验证）
 templates/            新模块的文档模板（AGENTS.md、品牌说明、更新日志）
 skills/               给 Claude Code 之类 AI 用的技能文件（实物预览设计、出图标）
 examples/             家族图标、示例渲染

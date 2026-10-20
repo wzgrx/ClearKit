@@ -1,0 +1,70 @@
+# 由 ./gradlew :tools:symbolfinder:run 从 core/symbols 生成，不要手改。给 DexAdapt 命令行用。
+dexadapt: 1
+app: com.example.host
+symbols:
+  - id: net.fastJson
+    class:
+      name: com.alibaba.fastjson.JSON
+  - id: net.fastJsonParse
+    method:
+      owner: $net.fastJson
+      name: parseObject
+      params:
+        - java.lang.String
+        - java.lang.reflect.Type
+        - int
+        - com.alibaba.fastjson.parser.Feature[]
+      returns: java.lang.Object
+      static: true
+  - id: net.fastJsonParseFull
+    method:
+      owner: $net.fastJson
+      name: parseObject
+      params:
+        - java.lang.String
+        - java.lang.reflect.Type
+        - com.alibaba.fastjson.parser.ParserConfig
+        - com.alibaba.fastjson.parser.deserializer.ParseProcess
+        - int
+        - com.alibaba.fastjson.parser.Feature[]
+      returns: java.lang.Object
+      static: true
+  - id: net.fastJsonParseText
+    method:
+      owner: $net.fastJson
+      name: parseObject
+      params:
+        - java.lang.String
+      returns: com.alibaba.fastjson.JSONObject
+      static: true
+  - id: net.gson
+    class:
+      name: com.google.gson.Gson
+  - id: net.gsonFromReaderType
+    method:
+      owner: $net.gson
+      params:
+        - java.io.Reader
+        - java.lang.reflect.Type
+      returns: java.lang.Object
+  - id: net.kotlinxJson
+    class:
+      name: kotlinx.serialization.json.Json
+  - id: net.kotlinxDecode
+    method:
+      owner: $net.kotlinxJson
+      name: decodeFromString
+      params:
+        - kotlinx.serialization.DeserializationStrategy
+        - java.lang.String
+      returns: java.lang.Object
+  - id: example.launchActivity
+    class:
+      name: com.example.host.MainActivity
+  - id: example.launchOnCreate
+    method:
+      owner: $example.launchActivity
+      name: onCreate
+      params:
+        - android.os.Bundle
+      returns: void
