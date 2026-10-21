@@ -128,13 +128,14 @@ fun ClearShell(
 /**
  * 页头（规范 v1）：二级页是返回 + 左对齐标题 + 副标题（“35 项 · 按位置分组”）；页签页（[onBack] 为空）是大标题，
  * 右边的操作是浅灰圆底按钮。
+ * [statusBar] 为 false 时不再让出状态栏（外层已经让过，例如整个导航图统一让）。
  */
 @Composable
-fun PageHeader(title: String, subtitle: String, onBack: (() -> Unit)? = null, actions: @Composable RowScope.() -> Unit = {}) {
+fun PageHeader(title: String, subtitle: String, onBack: (() -> Unit)? = null, statusBar: Boolean = true, actions: @Composable RowScope.() -> Unit = {}) {
     val c = Clear.colors
     val big = onBack == null
     Row(
-        Modifier.fillMaxWidth().background(c.ground).statusBarsPadding()
+        Modifier.fillMaxWidth().background(c.ground).then(if (statusBar) Modifier.statusBarsPadding() else Modifier)
             .padding(start = if (big) 20.dp else 4.dp, end = if (big) 16.dp else 8.dp, top = if (big) 10.dp else 4.dp, bottom = if (big) 10.dp else 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -155,6 +156,7 @@ fun PageHeader(title: String, subtitle: String, onBack: (() -> Unit)? = null, ac
 /**
  * 一页的骨架：页头、可滚动的内容、可选的底部按钮。页签页（[back] 为 false）没有返回键，底部让出悬浮底栏。
  * 内容里的行按顺序拼成卡片（见 [CardFlow]）；[flowKey] 变了重新开始拼。[top] 放在页头下、滚动区外（例如“示意图 / 列表”切换）。
+ * 不用 [ClearShell] 的模块（自己有导航）传 [onBack]、[bottomInset]（列表底部要让出的高度），[statusBar] 为 false 时页头不再让状态栏。
  */
 @Composable
 fun PageFrame(
@@ -166,12 +168,15 @@ fun PageFrame(
     bottom: (@Composable () -> Unit)? = null,
     flowKey: Any? = null,
     hideSectionLabels: Boolean = false,
+    onBack: (() -> Unit)? = null,
+    statusBar: Boolean = true,
+    bottomInset: Dp? = null,
     content: @Composable () -> Unit,
 ) {
-    val nav = LocalNavigator.current
-    val tabInset: Dp = if (back) 0.dp else LocalTabBarInset.current
+    val backAction: (() -> Unit)? = if (!back) null else onBack ?: LocalNavigator.current.let { nav -> { nav.back() } }
+    val tabInset: Dp = bottomInset ?: if (back) 0.dp else LocalTabBarInset.current
     Column(Modifier.fillMaxSize().background(Clear.colors.ground)) {
-        PageHeader(title, subtitle, onBack = if (back) nav::back else null, actions = actions)
+        PageHeader(title, subtitle, onBack = backAction, statusBar = statusBar, actions = actions)
         top?.invoke()
         CompositionLocalProvider(
             LocalCardFlow provides remember(flowKey) { CardFlow() },
@@ -184,8 +189,8 @@ fun PageFrame(
             }
         }
         if (bottom != null) {
-            if (back) Box(Modifier.navigationBarsPadding()) { bottom() } else bottom()
-        } else if (back) {
+            if (back && bottomInset == null) Box(Modifier.navigationBarsPadding()) { bottom() } else bottom()
+        } else if (back && bottomInset == null) {
             Box(Modifier.navigationBarsPadding())
         }
     }

@@ -56,10 +56,11 @@ object TabBarSize {
 /**
  * 液态玻璃底栏（规范 v1 “底栏”）：浮在页面上的胶囊，内容从下面滚过去。
  * - 选中项下面一颗“水滴”，换页签时用欠阻尼弹簧滑过去，滑得快时横向拉长、纵向压扁；
- * - 手指在底栏上左右拖，水滴跟着走，松手停在最近的一项并切过去。
+ * - 手指在底栏上左右拖，水滴跟着走，松手停在最近的一项并切过去；
+ * - [progress]（0 收起、1 显示）只在绘制层里读：进出子页面时底栏平移淡出，页面不用重新测量。
  */
 @Composable
-fun GlassTabBar(tabs: List<ShellTab>, selected: Int, bottom: Dp, modifier: Modifier = Modifier, onSelect: (Int) -> Unit) {
+fun GlassTabBar(tabs: List<ShellTab>, selected: Int, bottom: Dp, modifier: Modifier = Modifier, progress: () -> Float = { 1f }, onSelect: (Int) -> Unit) {
     val pill = remember { Animatable(selected.toFloat()) }
     var dragging by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
@@ -70,6 +71,11 @@ fun GlassTabBar(tabs: List<ShellTab>, selected: Int, bottom: Dp, modifier: Modif
         modifier
             .fillMaxWidth()
             .padding(start = TabBarSize.side, end = TabBarSize.side, bottom = bottom + TabBarSize.gap)
+            .graphicsLayer {
+                val p = progress()
+                translationY = (1f - p) * (size.height + (bottom + TabBarSize.gap).toPx())
+                alpha = p.coerceIn(0f, 1f)
+            }
             .height(TabBarSize.height)
             .liquidGlass(Capsule())
             .pointerInput(tabs.size) {
