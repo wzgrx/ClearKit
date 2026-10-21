@@ -24,6 +24,8 @@ import androidx.compose.ui.unit.IntOffset
  * - 返回：反向，弹簧更硬一点（约 250ms）。
  * - 页签之间：fade-through（先淡出、再淡入并从 0.96 放大），约 210ms，不横移。
  * - 底栏：进子页时往下滑走，回来时带一点回弹滑上来。
+ * 新页淡入从 1% 而不是 0 开始：完全透明的内容系统直接跳过不画，第一次真正绘制（文字、圆角块）就会挤在
+ * 淡入开始的那一帧（K90 上示意图页那一帧渲染线程 11–14ms）；从 1% 开始，这些准备在前面几帧做完，看不出来。
  */
 object ClearMotion {
     /** Material 3 强调减速（emphasized decelerate）。 */
@@ -49,14 +51,17 @@ object ClearMotion {
     val BarShow = spring<Float>(dampingRatio = 0.82f, stiffness = 420f)
     val BarHide = spring<Float>(dampingRatio = 1f, stiffness = 650f)
 
+    /** 新页淡入的起点（不是 0，见上）。 */
+    const val ENTER_ALPHA = 0.01f
+
     fun pushEnter(): EnterTransition = slideInHorizontally(PushSpring) { it / 5 } +
-        fadeIn(tween(PUSH - FADE_OUT, delayMillis = FADE_OUT, easing = LinearOutSlowInEasing))
+        fadeIn(tween(PUSH - FADE_OUT, delayMillis = FADE_OUT, easing = LinearOutSlowInEasing), initialAlpha = ENTER_ALPHA)
 
     fun pushExit(): ExitTransition = slideOutHorizontally(PushSpring) { -it / 10 } +
         fadeOut(tween(FADE_OUT, easing = FastOutLinearInEasing))
 
     fun popEnter(): EnterTransition = slideInHorizontally(PopSpring) { -it / 10 } +
-        fadeIn(tween(POP - FADE_OUT, delayMillis = FADE_OUT, easing = LinearOutSlowInEasing))
+        fadeIn(tween(POP - FADE_OUT, delayMillis = FADE_OUT, easing = LinearOutSlowInEasing), initialAlpha = ENTER_ALPHA)
 
     fun popExit(): ExitTransition = slideOutHorizontally(PopSpring) { it / 5 } +
         fadeOut(tween(FADE_OUT, easing = FastOutLinearInEasing))
