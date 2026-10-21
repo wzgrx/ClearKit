@@ -122,7 +122,7 @@ class RubberBandOverscroll : OverscrollEffect {
 }
 
 /** 阻尼曲线和它的反函数：手指拉了 [raw] 像素，内容显示移动多少；反过来由显示位移推手指距离。 */
-internal object Rubber {
+object Rubber {
     private const val C = 0.55f
 
     fun shown(raw: Float, dimension: Float): Float {
