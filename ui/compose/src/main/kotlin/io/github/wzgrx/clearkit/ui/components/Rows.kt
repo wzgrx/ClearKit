@@ -55,6 +55,7 @@ fun ListRow(
     role: Role? = Role.Button,
     badge: String? = null,
     leading: @Composable (() -> Unit)? = null,
+    changed: Boolean = false,
     trailing: @Composable (() -> Unit)? = null,
 ) {
     val c = Clear.colors
@@ -72,6 +73,11 @@ fun ListRow(
             Column(Modifier.weight(1f)) {
                 // 标记（重开生效、即将支持）跟在标题后面，不再单独占一行
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    // 改过默认值的设置：标题前一个强调色小圆点
+                    if (changed) {
+                        Box(Modifier.size(6.dp).clip(CircleShape).background(c.accent))
+                        Spacer(Modifier.width(6.dp))
+                    }
                     Text(title, style = Clear.type.item, color = if (enabled) c.text else c.textDisabled, modifier = Modifier.weight(1f, fill = false))
                     if (badge != null) {
                         Spacer(Modifier.width(6.dp))
@@ -105,11 +111,11 @@ fun ListRow(
 @Composable
 fun NavRow(
     title: String, summary: String? = null, value: String? = null, divider: Boolean = true, enabled: Boolean = true,
-    icon: ImageVector? = null, valueTone: Tone? = null, onClick: () -> Unit,
+    icon: ImageVector? = null, valueTone: Tone? = null, changed: Boolean = false, onClick: () -> Unit,
 ) {
     val c = Clear.colors
     val valueColor = when (valueTone) { Tone.OK -> c.ok; Tone.WARN -> c.warn; Tone.DANGER -> c.danger; else -> c.textSecondary }
-    ListRow(title, summary, divider, enabled, onClick, leading = icon?.let { { IconTile(it) } }) {
+    ListRow(title, summary, divider, enabled, onClick, leading = icon?.let { { IconTile(it) } }, changed = changed) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
             if (value != null) {
                 Text(value, style = Clear.type.body, color = if (enabled) valueColor else c.textDisabled, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 140.dp))
@@ -121,9 +127,9 @@ fun NavRow(
 
 /** 高密度的取值行：标题（加一行说明）在左，当前值和箭头在右，点开选。 */
 @Composable
-fun PickerRow(title: String, summary: String?, value: String, divider: Boolean = true, badge: String? = null, enabled: Boolean = true, onClick: () -> Unit) {
+fun PickerRow(title: String, summary: String?, value: String, divider: Boolean = true, badge: String? = null, enabled: Boolean = true, changed: Boolean = false, onClick: () -> Unit) {
     val c = Clear.colors
-    ListRow(title, summary, divider, enabled, onClick = onClick, badge = badge) {
+    ListRow(title, summary, divider, enabled, onClick = onClick, badge = badge, changed = changed) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(value, style = Clear.type.body, color = c.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 140.dp))
             Icon(ClearIcons.Chevron, contentDescription = null, tint = c.textTertiary, modifier = Modifier.size(16.dp))
@@ -143,9 +149,9 @@ fun ValueRow(title: String, summary: String? = null, value: String, divider: Boo
 @Composable
 fun SwitchRow(
     title: String, summary: String? = null, checked: Boolean, divider: Boolean = true, enabled: Boolean = true, badge: String? = null,
-    icon: ImageVector? = null, onChange: (Boolean) -> Unit,
+    icon: ImageVector? = null, changed: Boolean = false, onChange: (Boolean) -> Unit,
 ) {
-    ListRow(title, summary, divider, enabled, onClick = { onChange(!checked) }, role = Role.Switch, badge = badge, leading = icon?.let { { IconTile(it) } }) {
+    ListRow(title, summary, divider, enabled, onClick = { onChange(!checked) }, role = Role.Switch, badge = badge, leading = icon?.let { { IconTile(it) } }, changed = changed) {
         ClearSwitch(checked, enabled)
     }
 }
@@ -202,5 +208,54 @@ fun IconTile(icon: ImageVector, size: Dp = 32.dp) {
     val c = Clear.colors
     Box(Modifier.size(size).clip(RoundedCornerShape(size * 0.31f)).background(c.muted), contentAlignment = Alignment.Center) {
         Icon(icon, contentDescription = null, tint = c.text, modifier = Modifier.size(size * 0.56f))
+    }
+}
+
+/**
+ * 分类行（功能页“想做什么”“在哪里”）：40 的场景色图标、粗标题、一行说明，右边“开了几项 / 共几项”的小块；
+ * [changed] 时小块前一个强调色圆点（这一类里有改过默认值的设置）。[on] 为空时右边是箭头。
+ */
+@Composable
+fun CategoryRow(
+    icon: ImageVector, hue: ClearHue, title: String, subtitle: String, on: Int?, total: Int?, changed: Boolean = false, divider: Boolean = true, onClick: () -> Unit,
+) {
+    val c = Clear.colors
+    CardRow(divider) {
+        Row(
+            Modifier.fillMaxWidth().clickable(role = Role.Button, onClick = onClick).heightIn(min = 62.dp).padding(start = 14.dp, end = 12.dp, top = 10.dp, bottom = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            HueTile(icon, hue, 40.dp)
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(title, style = Clear.type.itemStrong, color = c.text, maxLines = 1)
+                Text(subtitle, style = Clear.type.caption, color = c.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            Spacer(Modifier.width(8.dp))
+            if (on != null && total != null) {
+                if (changed) {
+                    Box(Modifier.size(6.dp).clip(CircleShape).background(c.accent))
+                    Spacer(Modifier.width(6.dp))
+                }
+                Text(
+                    "$on / $total", style = Clear.type.caption, fontWeight = FontWeight.Bold, color = if (on > 0) c.accentInk else c.textSecondary, maxLines = 1,
+                    modifier = Modifier.clip(RoundedCornerShape(9.dp)).background(if (on > 0) c.accentSoft else c.muted).padding(horizontal = 8.dp, vertical = 2.dp),
+                )
+            } else {
+                Icon(ClearIcons.Chevron, contentDescription = null, tint = c.textTertiary, modifier = Modifier.size(18.dp))
+            }
+        }
+    }
+}
+
+/** 页脚的图例：一个强调色圆点 + 一句说明（“有改过默认值的设置 · 数字是开了几项 / 共几项”）。 */
+@Composable
+fun Legend(text: String) {
+    CloseCard()
+    val c = Clear.colors
+    Row(Modifier.fillMaxWidth().padding(horizontal = io.github.wzgrx.clearkit.ui.theme.PageGutter + 4.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.size(6.dp).clip(CircleShape).background(c.accent))
+        Spacer(Modifier.width(6.dp))
+        Text(text, style = Clear.type.caption, color = c.textTertiary)
     }
 }

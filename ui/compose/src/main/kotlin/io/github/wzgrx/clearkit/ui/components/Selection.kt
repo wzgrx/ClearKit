@@ -104,3 +104,18 @@ fun ClearChip(label: String, selected: Boolean, dot: Color? = null, onClick: () 
         Text(label, style = Clear.type.body, color = if (selected) c.accentInk else c.text, fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal)
     }
 }
+
+/** 假的搜索框（功能页顶上）：浅灰圆角条，点一下进搜索页。 */
+@Composable
+fun SearchBar(hint: String, onClick: () -> Unit) {
+    val c = Clear.colors
+    Row(
+        Modifier.padding(horizontal = PageGutter).padding(bottom = 10.dp).fillMaxWidth().height(46.dp).clip(RoundedCornerShape(Radius.small)).background(c.muted)
+            .clickable(role = Role.Button, onClickLabel = "搜索", onClick = onClick).padding(horizontal = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(ClearIcons.Search, contentDescription = null, tint = c.textSecondary, modifier = Modifier.size(20.dp))
+        Spacer(Modifier.width(10.dp))
+        Text(hint, style = Clear.type.body, color = c.textTertiary, maxLines = 1)
+    }
+}

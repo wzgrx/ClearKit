@@ -5,6 +5,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Icon
@@ -103,8 +105,8 @@ fun InCard(last: Boolean = false, content: @Composable ColumnScope.() -> Unit) {
  * 示意图视图里列表收起时（[LocalHideSectionLabels]）不画，剩下的行接在一起。
  */
 @Composable
-fun SectionLabel(text: String, action: String? = null, onAction: (() -> Unit)? = null) {
-    if (LocalHideSectionLabels.current) return
+fun SectionLabel(text: String, action: String? = null, onAction: (() -> Unit)? = null, always: Boolean = false) {
+    if (LocalHideSectionLabels.current && !always) return
     CloseCard()
     LocalCardFlow.current.open = false
     if (action == null || onAction == null) {
@@ -193,6 +195,26 @@ fun CountChip(label: String, count: String, onClick: () -> Unit) {
     ) {
         Text(label, style = Clear.type.label, color = c.text)
         Text(count, style = Clear.type.label, color = c.textSecondary)
+    }
+}
+
+/**
+ * 一页的摘要（规范 v1 “设置页”）：“已开 30 / 35”和一句说明（改过默认值几项、几项要重开），右边可放一两个按钮（“全部打开”“撤销”）。
+ */
+@Composable
+fun PageSummary(title: String, detail: String?, modifier: Modifier = Modifier, actions: @Composable RowScope.() -> Unit = {}) {
+    CloseCard()
+    val c = Clear.colors
+    Row(
+        modifier.padding(horizontal = PageGutter).padding(bottom = Space.card).fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(c.surface)
+            .heightIn(min = 56.dp).padding(start = 16.dp, end = 10.dp, top = 10.dp, bottom = 10.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(title, style = Clear.type.itemStrong, color = c.text)
+            if (!detail.isNullOrEmpty()) Text(detail, style = Clear.type.caption, color = c.textSecondary)
+        }
+        actions()
     }
 }
 
