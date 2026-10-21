@@ -52,6 +52,12 @@ internal fun pageKey(depth: Int, route: String) = "page:$depth:$route"
 val LocalNavigator = staticCompositionLocalOf<Navigator> { error("no navigator") }
 
 /**
+ * 这一页自己的路由（页签页为空）。页面要知道“我是哪页”时用它，别用 [Navigator.top]：页签页一直留在组合里，
+ * 压上二级页以后 top 是那一页的路由。
+ */
+val LocalPageRoute = staticCompositionLocalOf<String?> { null }
+
+/**
  * 未保存修改：页面有没保存的改动时，返回（页头箭头、系统返回）先问“放弃修改？”。[dirty] 为 false 时直接返回。
  */
 @Composable
