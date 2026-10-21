@@ -1,5 +1,6 @@
 package io.github.clearkit.starter.app.ui.pages
 
+import kotlinx.coroutines.launch
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.widget.Toast
@@ -54,6 +55,9 @@ private fun HostSection(st: HostAdapter.Status) {
         "适配来源", if (st.bundled) "这个版本有内置适配" else "这个版本没有内置适配", st.source,
         valueColor = if (st.ready) Bc.colors.ok else Bc.colors.warn,
     )
+    // 【宿主】这次运行报来的适配报告（和【宿主】里的卡片说的一样）
+    val reports by collect(ModuleApp.instance.status.all)
+    reports[st.packageName]?.takeIf { it.hostVersionCode == st.versionCode }?.report?.let { ReportRows(it, st.packageName) }
     st.lastScan?.let { r ->
         val at = java.text.SimpleDateFormat("M月d日 HH:mm", java.util.Locale.CHINA).format(java.util.Date(r.at))
         ValueRow("上次扫描", "$at · ${r.reason}", if (r.ok) "找到 ${r.found} / ${r.total}" else "失败")
@@ -68,4 +72,24 @@ private fun HostSection(st: HostAdapter.Status) {
     NavRow("自检", "内置版本：重新解析并和内置表逐条比对", "自检", divider = false, enabled = st.bundled && st.phase != HostAdapter.Phase.RUNNING) {
         adapter.start(st.packageName, selfCheck = true)
     }
+}
+
+/** 一份适配报告：找到几处、几项生效、要重开的（带“立即重开”）、用不了的和原因、先观察的。 */
+@Composable
+private fun ReportRows(r: io.github.clearkit.starter.model.adapt.AdaptReport, pkg: String) {
+    val nav = io.github.clearkit.starter.app.ui.LocalNavigator.current
+    val context = LocalContext.current
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    ValueRow("这次运行", io.github.clearkit.starter.model.adapt.AdaptCardText.foundLine(r), "${r.active} 项生效", valueColor = if (r.tier == io.github.clearkit.starter.model.adapt.AdaptReport.Tier.OK) Bc.colors.ok else Bc.colors.warn)
+    if (r.restart.isNotEmpty()) {
+        Notice("重开【宿主】后 ${r.restart.size} 项生效：${r.restart.joinToString("、")}", Tone.WARN, "立即重开") {
+            scope.launch { io.github.clearkit.starter.app.data.HostControl.restart(context, pkg) }
+        }
+    }
+    if (r.unavailable.isNotEmpty()) {
+        SectionLabel("这一版用不了 · ${r.unavailable.size}")
+        r.unavailable.forEachIndexed { i, issue -> ValueRow(issue.title, issue.reason, "", divider = i < r.unavailable.lastIndex) }
+    }
+    if (r.observing > 0) ValueRow("先观察", "推测出来的位置，用到时自动确认，确认前不改【宿主】的行为", "${r.observing} 项")
+    NavRow("每个功能的状态", "生效、待重开、用不了、没开，各带原因", "查看") { nav.open("status") }
 }

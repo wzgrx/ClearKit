@@ -238,13 +238,32 @@ class HostAdapter(private val context: Context) {
     }
 
     /** 本机表只留装着的客户端当前版本的（升级前的版本用不上了）。 */
+    /** 只留装着的版本和最近生成的几个（【宿主】降级、回滚时不用重新适配），其余删掉。 */
     private fun pruneLocal() {
-        val keep = packages.mapNotNull { host(it)?.versionCode }.toSet()
-        dir.listFiles().orEmpty().filter { f -> f.name.removeSuffix(".json").toLongOrNull()?.let { it !in keep } == true }.forEach { it.delete() }
+        val installed = packages.mapNotNull { host(it)?.versionCode }.toSet()
+        val tables = dir.listFiles().orEmpty().filter { it.name.removeSuffix(".json").toLongOrNull() != null }.sortedByDescending { it.lastModified() }
+        val recent = tables.take(KEEP_RECENT).toSet()
+        tables.filter { f -> f !in recent && f.name.removeSuffix(".json").toLong() !in installed }.forEach { it.delete() }
     }
 
     /** 自动检查：在后台判断，需要时扫描。[packageName] 为空时检查全部装着的客户端。 */
     fun check(trigger: String, packageName: String? = null) = enqueue(Mode.CHECK, trigger, packageName)
+
+    /**
+     * 【宿主】打开着、在等结果（它启动时请求的、或刚升级）：直接在这个进程里开线程跑，不排进系统的后台任务队列——
+     * 刚装好、刚被唤醒的 App 常被 JobScheduler 按额度延后几十秒（实测 32 秒），而解析本身只要两三秒。
+     */
+    fun checkNow(trigger: String, packageName: String) {
+        Thread({
+            runCatching {
+                run(Mode.CHECK, trigger, packageName) { p, done, total -> update(p) { it.copy(progress = done, total = total, message = "正在解析 $done / $total") } }
+            }.onFailure { e ->
+                Log.w(TAG, "adapt failed ($trigger)", e)
+                record(packageName, ScanRecord(System.currentTimeMillis(), _statuses.value[packageName]?.versionCode ?: 0, trigger, false, error = e.message ?: e.javaClass.simpleName))
+                update(packageName) { it.copy(phase = Phase.FAILED, message = "失败：${e.message ?: e.javaClass.simpleName}") }
+            }
+        }, "bc-adapt-now").start()
+    }
 
     /** 手动：全量扫描（不管判断结果）或自检。 */
     fun start(packageName: String, selfCheck: Boolean = false) =
@@ -316,6 +335,14 @@ class HostAdapter(private val context: Context) {
                 t.missing.forEach { (id, why) -> sb.append("    ").append(id).append("：").append(why).append('\n') }
                 sb.append("  受影响的功能：").append(affectedFeatures(t.missing.keys).joinToString("、").ifEmpty { "无" }).append('\n')
             }
+            // 【宿主】这次运行报来的适配报告（卡片上显示的那份）
+            ModuleApp.instance.status.all.value[st.packageName]?.report?.let { r ->
+                sb.append("  这次运行：找到 ").append(r.found).append('/').append(r.total).append("，").append(r.active).append(" 项生效")
+                if (r.observing > 0) sb.append("，").append(r.observing).append(" 项先观察")
+                sb.append('\n')
+                if (r.restart.isNotEmpty()) sb.append("  重开后生效：").append(r.restart.joinToString("、")).append('\n')
+                r.unavailable.forEach { sb.append("  用不了：").append(it.title).append("（").append(it.reason).append("）\n") }
+            }
         }
         return sb.toString()
     }
@@ -362,7 +389,11 @@ class HostAdapter(private val context: Context) {
                 // 本机适配：按版本钉死的位置只对已知版本有效，全部按查询找；“某版本没有”的标注也不适用
                 SymbolResolver(source, h.versionCode, log = { Log.i(TAG, it) })
             }
-            val resolved = resolver.table(SymbolCatalog.all, onProgress)
+            val resolved = resolver.table(SymbolCatalog.all, onProgress).let { t ->
+                // 这个渠道本来就没有的符号（只有另一个渠道才有）：找不到是正常的，记成 absent，不算缺失、不提示
+                val absent = SymbolCatalog.channelAbsentFor(pkg).filter { it in t.missing }
+                if (absent.isEmpty() || mode == Mode.SELF_CHECK) t else t.copy(missing = t.missing - absent.toSet(), absent = (t.absent + absent).distinct())
+            }
             // 分级回退：解析不到的符号推测位置，只给有契约的 Hook 点观察后使用
             if (mode == Mode.SELF_CHECK) resolved else resolver.withGuesses(resolved, SymbolCatalog.all) { id -> knownLocations(id) }
         }
@@ -460,6 +491,9 @@ class HostAdapter(private val context: Context) {
     }
 
     companion object {
+        /** 本机表除了装着的版本，再多留最近生成的几个。 */
+        private const val KEEP_RECENT = 3
+
         private const val TAG = "BcAdapt"
         private const val WORK = "host-adapt"
         private const val PERIODIC = "host-adapt-periodic"

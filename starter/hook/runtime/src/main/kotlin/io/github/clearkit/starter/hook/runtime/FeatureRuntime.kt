@@ -26,7 +26,7 @@ class FeatureRuntime(
     private val xposed: XposedInterface,
     private val features: List<Feature>,
     override val hostClassLoader: ClassLoader,
-    dataDir: File,
+    private val dataDir: File,
     private val hostPackage: String,
     private val hostVersionCode: Long?,
     private val hostVersionName: String,
@@ -49,8 +49,9 @@ class FeatureRuntime(
     }
     // 选表交给 DexAdapt 的 AdaptPolicy：这一版模块对着这个安装包生成的本机表 → 内置表 → 对着这个安装包、但模块更新前生成的
     // 本机表（查询旧了、位置还对，同时请 App 重扫）→ 都没有。安装包对不上的本机表（同版本号换了灰度包 / 正式包）不用。
+    // 免 Root 加载没有 LSPosed 远程文件：本机表经桥接从 App 取来后存在【宿主】自己的目录里（[cachedTable]），下次启动直接用。
     private val choice = hostVersionCode?.let { vc ->
-        io.github.wzgrx.dexadapt.runtime.AdaptPolicy.choose(HostSymbols.loadRemote(xposed, vc), HostSymbols.loadTable(vc), SymbolCatalog.fingerprint, hostApkIdentity)
+        io.github.wzgrx.dexadapt.runtime.AdaptPolicy.choose(HostSymbols.loadRemote(xposed, vc) ?: cachedTable(vc), HostSymbols.loadTable(vc), SymbolCatalog.fingerprint, hostApkIdentity)
     }
     override val symbols = HostSymbols(choice?.table, hostClassLoader).also {
         choice?.table?.let { t ->
@@ -58,6 +59,11 @@ class FeatureRuntime(
             ModuleLog.i("using $what symbol table for ${t.versionCode}: ${t.entries.size} found, ${t.missing.size} missing")
         }
     }
+
+    /** 这个渠道本来就没有的符号（只有另一个渠道才有的入口）：找不到不算缺失，用到它们的功能算“不支持”而不是“用不了”。 */
+    private val channelAbsent: Set<String> = SymbolCatalog.channelAbsentFor(hostPackage)
+
+    private fun expectedAbsent(): Set<String> = channelAbsent + symbols.table?.absent.orEmpty()
 
     /** 需要 App 本机适配：没有可用的表，或只有模块更新前生成的本机表。热适配换表后按新表重新判断。 */
     private val needsAdaptation: Boolean
@@ -121,6 +127,8 @@ class FeatureRuntime(
         // 免 Root 加载：没有远程设置，Application 一建好就从 App 拉一次
         if (!settings.remote) whenApplication { pullSettings() }
         if (!settings.readable) ModuleLog.e("settings unreadable: every feature stays off this launch")
+        // 新版本第一次打开：先请 App 适配、最多等几秒，等到了就一次装全（不用热适配，也不用重开）
+        if (needsAdaptation && hostVersionCode != null && settings.readable && settings.masterEnabled) earlyAdaptation(hostVersionCode)
         if (settings.readable && settings.masterEnabled) entries.values.forEach { it.tryInstall(FeatureInstall.Trigger.START) }
         HostActivities.onResumed { stopNotices.flush(it) }
         entries.values.filter { it.state == State.CRASH_DISABLED }.forEach { e ->
@@ -135,44 +143,49 @@ class FeatureRuntime(
 
     /**
      * 【宿主】升级到没有可用符号表的版本（或模块更新后本机表过期）：请 App 在后台本机适配（DexKit，几秒），
-     * 然后每 3 秒看一次 LSPosed 远程文件，新表到了就当场换上、把之前不可用的功能装上（热适配，不用重启）。
-     * 少数在启动最早期才生效的功能（如开屏）下次打开【宿主】生效。App 起不来时每个版本提醒一次。
+     * 然后看 LSPosed 远程文件（免 Root 时经桥接问 App），新表到了就当场换上：之前装不上的装上，装上了但缺入口的撤下重装
+     * （热适配）。只在启动时起作用的功能（开屏、底栏……）列进“重开后生效”，适配卡片上可以一键重开。
      */
+    /** 这次运行里要热适配（结果卡片会说清楚，启动提示就不再说“已适配”，留到下次冷启动）。 */
+    @Volatile
+    private var adaptingThisRun = false
+
     private fun requestAdaptation(app: Application, versionCode: Long) {
+        adaptingThisRun = true
         if (settings[Settings.Module.adaptCard]) main.postDelayed({ AdaptationEvents.listener?.onAdapting(hostVersionName) }, 1200)
         main.postDelayed({
             BridgeClient.post(app, Bridge.METHOD_HOST_ADAPT, arg = "$hostPackage:$versionCode") { reply ->
                 ModuleLog.i("adaptation requested for $versionCode: ${reply?.getString(Bridge.KEY_JSON) ?: "app unreachable"}")
             }
             Thread({ waitForAdaptation(app, versionCode) }, "bc-adapt-wait").apply { isDaemon = true }.start()
-        }, 2000)
+        }, 600)
     }
 
     /**
-     * 已经有可用的表（内置表、这一版模块生成的本机表）：每个“模块版本 × 【宿主】版本”第一次启动时也显示适配卡片，
-     * 逐个核对符号能不能在这个安装包里找到（进度条走一遍），最后报找到几个、几个功能生效；以后不再显示。
+     * 已经有可用的表（内置表、这一版模块生成的本机表）：每个“模块版本 × 【宿主】版本”第一次启动时在后台逐个核对符号
+     * （不显示进度，不打扰）；只有核对出问题（有功能用不了）时才弹结果卡片。以后不再核对。
      * 核对在主线程分批做（找类时可能触发【宿主】的类初始化，不放到后台线程）。
      */
     private fun verifyOnce(app: Application, versionCode: Long) {
-        val flag = File(app.filesDir, "module/adapt_verified_" + "${moduleVersion}_$versionCode".replace(Regex("[^A-Za-z0-9._-]"), "_"))
+        val flag = verifiedFlag(app, versionCode)
         if (flag.exists()) return
         val all = SymbolCatalog.all
         if (all.isEmpty()) return
         var index = 0
-        var found = 0
         fun step() {
-            val end = minOf(index + 4, all.size)
-            while (index < end) { if (runCatching { symbols.available(all[index]) }.getOrDefault(false)) found++; index++ }
-            AdaptationEvents.listener?.onProgress(index, all.size)
-            if (index < all.size) { main.postDelayed(::step, 45); return }
-            // 分母按这一版的表应有的数量：标了“这个版本没有”（absentIn）的符号不算没找到
-            val expected = symbols.table?.let { t -> t.entries.size + t.missing.size }?.coerceAtMost(all.size) ?: all.size
-            AdaptationEvents.listener?.onAdapted(hostVersionName, minOf(found, expected), expected, entries.values.count { it.installed })
+            val end = minOf(index + 8, all.size)
+            while (index < end) { runCatching { symbols.available(all[index]) }; index++ }
+            if (index < all.size) { main.postDelayed(::step, 30); return }
             runCatching { flag.parentFile?.mkdirs(); flag.writeText("1") }
+            val report = adaptReport()
+            ModuleLog.i("verified ${report.found} / ${report.total} symbols; ${report.unavailable.size} features unavailable")
+            if (report.tier != io.github.clearkit.starter.model.adapt.AdaptReport.Tier.OK) AdaptationEvents.listener?.onResult(report, settings[Settings.Module.adaptCard])
         }
-        main.postDelayed({ AdaptationEvents.listener?.onVerifying(hostVersionName) }, 1200)
-        main.postDelayed(::step, 1800)
+        main.postDelayed(::step, 2500)
     }
+
+    private fun verifiedFlag(app: Application, versionCode: Long) =
+        File(app.filesDir, "module/adapt_verified_" + "${moduleVersion}_$versionCode".replace(Regex("[^A-Za-z0-9._-]"), "_"))
 
     private fun waitForAdaptation(app: Application, versionCode: Long) {
         val deadline = android.os.SystemClock.elapsedRealtime() + ADAPT_WAIT_MS
@@ -180,35 +193,172 @@ class FeatureRuntime(
         var tick = 0
         while (android.os.SystemClock.elapsedRealtime() < deadline) {
             // 卡片显示时每半秒问一次 App 的解析进度；新表每 1.5 秒看一次
-            Thread.sleep(if (card) 500 else 3000)
+            Thread.sleep(if (card) 500 else 1500)
             if (card) adaptProgress(app)?.let { p -> main.post { AdaptationEvents.listener?.onProgress(p.done, p.total) } }
             if (card && ++tick % 3 != 0) continue
-            val t = HostSymbols.loadRemote(xposed, versionCode) ?: continue
-            if (!fresh(t) || t == symbols.table) continue
+            val t = HostSymbols.loadRemote(xposed, versionCode) ?: if (!settings.remote) fetchTable(app, versionCode) else null
+            if (t == null || !fresh(t) || t == symbols.table) continue
             main.post {
-                symbols.replace(t)
-                contracts = monitorFor(t)
-                val before = entries.values.count { it.installed }
-                // 换了表才重试之前安装失败的功能（失败时挂上的钩子已撤销）。
-                entries.values.forEach { it.tryInstall(FeatureInstall.Trigger.SYMBOLS) }
-                val added = entries.values.count { it.installed } - before
-                ModuleLog.i("hot adaptation: table for $versionCode applied, $added features installed")
+                val report = applyHotTable(t)
+                runCatching { verifiedFlag(app, versionCode).let { it.parentFile?.mkdirs(); it.writeText("1") } }
                 scheduleReport()
                 val listener = AdaptationEvents.listener
-                if (card && listener != null) {
-                    listener.onAdapted(hostVersionName, t.entries.size, t.entries.size + t.missing.size, entries.values.count { it.installed })
-                } else {
-                    toast(app, "【模块】已自动适配【宿主】 $hostVersionName，$added 个功能已生效")
-                }
+                if (listener != null) listener.onResult(report, card)
+                else toast(app, "【模块】已自动适配【宿主】 $hostVersionName，${report.active} 项已生效")
             }
             return
         }
         ModuleLog.w("adaptation for $versionCode did not finish in time")
-        if (card) main.post { AdaptationEvents.listener?.onTimeout(hostVersionName) }
-        val flag = File(app.filesDir, "module/adapt_hint_$versionCode")
-        if (flag.exists()) return
+        val detail = timeoutDetail()
+        main.post { AdaptationEvents.listener?.onTimeout(hostVersionName, detail) }
+    }
+
+    /** 等不到新表时卡片上的说明：现在哪些照常、哪些暂停，为什么没好。 */
+    private fun timeoutDetail(): String {
+        val on = entries.values.filter { it.feature.isOn(settings) }
+        val active = on.count { it.installed }
+        val paused = on.size - active
+        val why = if (android.os.Process.myUid() / 100_000 != 0) "这是分身 / 工作资料里的【宿主】，要在同一个空间里装【模块】才能适配"
+        else "【模块】没能在后台启动（可能被省电或自启动限制拦住了）"
+        return "$why。现在 $active 项照常生效，$paused 项等适配好后生效。"
+    }
+
+    /**
+     * 新版本第一次打开时先等一会儿（最多 [EARLY_WAIT_MS]）：请 App 本机适配，表到了就在装功能之前换上，一次装全、不用重开。
+     * 这时还没有 Application，借系统 Context 建一个【宿主】自己的 Context 调桥接。每个版本最多等两次（App 起不来时不每次都慢）。
+     */
+    private fun earlyAdaptation(versionCode: Long) {
+        val flag = File(dataDir, "files/module/adapt_early_$versionCode")
+        val tries = runCatching { flag.readText().trim().toInt() }.getOrDefault(0)
+        if (tries >= 2) return
+        runCatching { flag.parentFile?.mkdirs(); flag.writeText("${tries + 1}") }
+        val context = packageContext() ?: return
+        val started = android.os.SystemClock.elapsedRealtime()
+        // 【宿主】或模块刚升级、被强行停止过时，系统收回了“【宿主】能看见模块 App”的授权，这时还没有页面可以握手：
+        // 请求不通就马上放弃（不白等），交给热适配；通了才等表
+        val reply = java.util.concurrent.atomic.AtomicReference<android.os.Bundle?>()
+        val answered = java.util.concurrent.CountDownLatch(1)
+        Thread({
+            reply.set(runCatching { BridgeClient.callDirect(context, Bridge.METHOD_HOST_ADAPT, arg = "$hostPackage:$versionCode") }.getOrNull())
+            answered.countDown()
+        }, "bc-adapt-early").apply { isDaemon = true }.start()
+        answered.await(EARLY_REQUEST_MS, java.util.concurrent.TimeUnit.MILLISECONDS)
+        val ok = reply.get()?.getBoolean(Bridge.KEY_OK, false) == true
+        ModuleLog.i("early adaptation requested for $versionCode: ${if (ok) "accepted" else "app unreachable"} after ${android.os.SystemClock.elapsedRealtime() - started} ms")
+        if (!ok) return
+        while (android.os.SystemClock.elapsedRealtime() - started < EARLY_WAIT_MS) {
+            Thread.sleep(150)
+            val t = HostSymbols.loadRemote(xposed, versionCode) ?: if (!settings.remote) fetchTable(context, versionCode, direct = true) else null
+            if (t != null && fresh(t)) {
+                symbols.replace(t)
+                contracts = monitorFor(t)
+                ModuleLog.i("early adaptation: table for $versionCode ready after ${android.os.SystemClock.elapsedRealtime() - started} ms (${t.entries.size} found, ${t.missing.size} missing)")
+                runCatching { flag.delete() }
+                return
+            }
+        }
+        ModuleLog.i("early adaptation: no table for $versionCode within $EARLY_WAIT_MS ms; continuing with hot adaptation")
+    }
+
+    /** 【宿主】自己的 Context（Application 建好之前用）：系统 Context 派生，调用方身份就是【宿主】。 */
+    @android.annotation.SuppressLint("PrivateApi")
+    private fun packageContext(): android.content.Context? = runCatching {
+        val at = Class.forName("android.app.ActivityThread")
+        val system = at.getMethod("getSystemContext").invoke(at.getMethod("currentActivityThread").invoke(null)) as android.content.Context
+        system.createPackageContext(hostPackage, 0)
+    }.onFailure { ModuleLog.w("early adaptation: no context", it) }.getOrNull()
+
+    /** 免 Root 加载：经桥接问 App 要这一版的本机表，拿到后存进【宿主】自己的目录（下次启动直接用）。 */
+    private fun fetchTable(context: android.content.Context, versionCode: Long, direct: Boolean = false): io.github.wzgrx.dexadapt.SymbolTable? = runCatching {
+        val arg = "$hostPackage:$versionCode"
+        val reply = if (direct) BridgeClient.callDirect(context, Bridge.METHOD_SYMBOL_TABLE, arg = arg) else BridgeClient.call(context, Bridge.METHOD_SYMBOL_TABLE, arg = arg)
+        val json = reply?.getString(Bridge.KEY_JSON) ?: return@runCatching null
+        val t = io.github.wzgrx.dexadapt.SymbolTable.fromJson(json).takeIf { it.versionCode == versionCode } ?: return@runCatching null
+        File(tableCacheDir, "$versionCode.json").let { f -> f.parentFile?.mkdirs(); f.writeText(json) }
+        t
+    }.onFailure { ModuleLog.w("table $versionCode not fetched from the app", it) }.getOrNull()
+
+    private val tableCacheDir get() = File(dataDir, "files/module/symbols")
+
+    /** 免 Root 时上次从 App 取来的表。 */
+    private fun cachedTable(versionCode: Long): io.github.wzgrx.dexadapt.SymbolTable? = runCatching {
+        File(File(dataDir, "files/module/symbols"), "$versionCode.json").takeIf { it.isFile }
+            ?.readText()?.let(io.github.wzgrx.dexadapt.SymbolTable::fromJson)?.takeIf { it.versionCode == versionCode }
+    }.getOrNull()
+
+    /**
+     * 热适配：换表，装上之前装不上的，撤下重装装上了但缺入口、现在找得到了的；只在启动时起作用的（或它依赖的功能换表后
+     * 才装好的）记成“重开后生效”。返回这次的报告。
+     */
+    private fun applyHotTable(t: io.github.wzgrx.dexadapt.SymbolTable): io.github.clearkit.starter.model.adapt.AdaptReport {
+        symbols.replace(t)
+        contracts = monitorFor(t)
+        val late = LinkedHashSet<Feature>()
+        entries.values.filter { it.installed && it.missesNowFound() }.forEach { e ->
+            if (e.reinstall()) late += e.feature
+        }
+        val before = entries.values.filter { it.installed }.map { it.feature }.toSet()
+        entries.values.forEach { it.tryInstall(FeatureInstall.Trigger.SYMBOLS) }
+        late += entries.values.filter { it.installed && it.feature !in before }.map { it.feature }
+        entries.values.forEach { e ->
+            if (e.installed && e.feature.startupOnly && (e.feature in late || e.feature.dependsOn in late)) e.restartPending = true
+        }
+        refreshNeeded = late.any { f -> entries.values.any { it.feature.dependsOn === f } }
+        val report = adaptReport()
+        ModuleLog.i(
+            "hot adaptation: table for ${t.versionCode} applied, ${late.size} features (re)installed: ${late.joinToString { it.id }}; " +
+                "restart needed for ${report.restart.size}, unavailable ${report.unavailable.size}",
+        )
+        return report
+    }
+
+    /** 这次运行的适配报告（卡片、启动提示、App 都用它）。 */
+    fun adaptReport(): io.github.clearkit.starter.model.adapt.AdaptReport {
+        val t = symbols.table
+        val expected = expectedAbsent()
+        val total = t?.let { it.entries.size + it.missing.keys.count { id -> id !in expected } } ?: SymbolCatalog.all.count { it.id !in expected }
+        val statuses = entries.values.map { it to it.status() }
+        val unavailable = statuses.mapNotNull { (e, st) -> e.issue(st)?.let { io.github.clearkit.starter.model.adapt.AdaptReport.Issue(e.feature.title, it) } }
+        return io.github.clearkit.starter.model.adapt.AdaptReport(
+            hostVersionName = hostVersionName,
+            found = t?.entries?.size ?: 0,
+            total = total,
+            active = statuses.count { it.second.state == State.ACTIVE },
+            restart = statuses.filter { it.second.state == State.RESTART_PENDING }.map { it.first.feature.title },
+            unavailable = unavailable,
+            observing = statuses.count { it.second.state == State.OBSERVING },
+            local = t?.generator?.isNotEmpty() == true,
+            refreshNeeded = refreshNeeded,
+        )
+    }
+
+    /** 改接口数据的功能是换表后才装好的（这次运行里已经显示的内容要刷新）。 */
+    @Volatile
+    private var refreshNeeded = false
+
+    /** 卡片上的“重试”：再请 App 适配一次、再等。 */
+    fun retryAdaptation() {
+        val app = application ?: return
+        val vc = hostVersionCode ?: return
+        if (!needsAdaptation) return
+        requestAdaptation(app, vc)
+    }
+
+    /** 重开后生效的功能还有几项（“稍后”收成的小胶囊上的数字）。 */
+    val restartPendingCount: Int get() = entries.values.count { it.restartPending && it.installed && it.feature.isOn(settings) }
+
+    /**
+     * 这个【宿主】版本第一次冷启动（提示里说“已适配 x.y.z · 全部正常”）：每个“模块版本 × 【宿主】版本”只返回一次 true。
+     * 热适配那次运行里已经弹过结果卡片，不算。
+     */
+    fun consumeFirstForVersion(): Boolean {
+        if (adaptingThisRun) return false
+        val app = application ?: return false
+        val vc = hostVersionCode ?: return false
+        val flag = File(app.filesDir, "module/announced_" + "${moduleVersion}_$vc".replace(Regex("[^A-Za-z0-9._-]"), "_"))
+        if (flag.exists()) return false
         runCatching { flag.parentFile?.mkdirs(); flag.writeText("1") }
-        main.post { toast(app, "【模块】：这个版本的【宿主】（$hostVersionName）还没适配好。打开【模块】会自动在本机适配，之后重启【宿主】") }
+        return true
     }
 
     /** App 本机适配的当前进度（旧版 App 不认识这个接口时 null）。在后台线程调用。 */
@@ -303,6 +453,7 @@ class FeatureRuntime(
         // 这次【宿主】进程开始运行的时间：App 据此判断“需重启”的改动是不是已经被新进程读到（没有 root 时也能清掉提示）
         startedAt = startedAt,
         remoteSettings = settings.remote,
+        report = runCatching { adaptReport() }.getOrNull(),
     )
 
     private val startedAt = System.currentTimeMillis()
@@ -317,6 +468,12 @@ class FeatureRuntime(
     companion object {
         /** 【宿主】启动时请 App 本机适配后，最多等这么久新表（App 冷启动 + 解析一般十秒内）。 */
         private const val ADAPT_WAIT_MS = 150_000L
+
+        /** 新版本第一次打开时，装功能之前最多等表这么久（这次 9.16.0 的本机适配用了 2 秒）。 */
+        private const val EARLY_WAIT_MS = 3_000L
+
+        /** 请 App 适配这一步最多等这么久回话（App 冷启动一般几百毫秒）；不通就不等表了。 */
+        private const val EARLY_REQUEST_MS = 1_200L
 
         /** contracts.json：表的身份 → 符号 id → 判定。 */
         private val VERDICTS = MapSerializer(String.serializer(), MapSerializer(String.serializer(), String.serializer()))
@@ -334,6 +491,41 @@ class FeatureRuntime(
         val installed: Boolean get() = lifecycle.installed
         val state: State get() = lifecycle.state
         val circuit = Circuit()
+
+        /** 换表后才装好、又只在启动时起作用：重开【宿主】后生效。 */
+        @Volatile
+        var restartPending = false
+
+        /** 装好时缺的可选入口，换了表以后有找得到的（该撤下重装了）。 */
+        fun missesNowFound(): Boolean {
+            val expected = expectedAbsent()
+            return lifecycle.misses.any { id -> id !in expected && SymbolCatalog.all.firstOrNull { it.id == id }?.let { s -> symbols.problem(s) == null } == true }
+        }
+
+        /** 撤下重装（换表后）；返回是否装上了。 */
+        fun reinstall(): Boolean {
+            lifecycle.uninstall()
+            tryInstall(FeatureInstall.Trigger.SYMBOLS)
+            return installed
+        }
+
+        /** 用户开着、这一版却用不了（或只有部分效果）的原因，给卡片和 App 看；没问题、本来就没有、没开的返回 null。 */
+        fun issue(st: FeatureStatus): String? {
+            if (!feature.isOn(settings) || maintenanceOff) return null
+            return when (st.state) {
+                State.UNAVAILABLE -> if (lifecycle.expected || (installed && violation == null)) null
+                    else if (violation != null) "这一版的调用方式变了，已自动停用"
+                    else "这一版找不到它要用的地方"
+                State.FAILED -> if (circuit.open) "反复出错，这次运行里已自动停用" else "装不上（${lifecycle.detail?.substringBefore(':')?.take(40) ?: "未知原因"}）"
+                State.CRASH_DISABLED -> "上次导致【宿主】崩溃，已自动停用"
+                State.ACTIVE, State.OBSERVING -> {
+                    val expected = expectedAbsent()
+                    val missing = lifecycle.misses.count { id -> id !in expected && SymbolCatalog.all.firstOrNull { it.id == id }?.let { s -> symbols.problem(s) != null } == true }
+                    if (missing > 0) "部分效果没有：这一版找不到 $missing 处" else null
+                }
+                else -> null
+            }
+        }
 
         override val settings: HostSettings get() = this@FeatureRuntime.settings
         override val symbols: HostSymbols get() = this@FeatureRuntime.symbols
@@ -364,6 +556,7 @@ class FeatureRuntime(
                 installed && bad != null -> State.UNAVAILABLE
                 installed && !feature.isOn(settings) -> State.OFF
                 installed && heldByContract -> State.OBSERVING
+                installed && restartPending -> State.RESTART_PENDING
                 installed -> State.ACTIVE
                 else -> state
             }
@@ -371,6 +564,7 @@ class FeatureRuntime(
                 State.FAILED -> if (circuit.open) circuit.lastError?.let { "${it.javaClass.simpleName}: ${it.message}" } else lifecycle.detail
                 State.UNAVAILABLE -> bad ?: lifecycle.detail
                 State.OBSERVING -> verdicts().let { v -> "新版本先观察：${v.count { it.second == ContractMonitor.Verdict.PASSED }} / ${v.size} 个 Hook 点已验证" }
+                State.RESTART_PENDING -> "启动时还没有适配好，重开【宿主】后生效"
                 else -> lifecycle.detail
             }
             return FeatureStatus(feature.id, feature.title, shown, why)
@@ -407,6 +601,10 @@ class FeatureRuntime(
             override val on get() = feature.isOn(settings) && !maintenanceOff
             override fun crashBlocked() = crashGuard.blocked(feature.id)?.takeIf { settings[Settings.Module.autoDisableCrashing] }?.message
             override fun missing() = feature.requires.firstNotNullOfOrNull { s -> symbols.problem(s)?.let { "${s.id}: $it" } }
+            override fun missingIsExpected(): Boolean {
+                val expected = expectedAbsent()
+                return feature.requires.filter { symbols.problem(it) != null }.let { it.isNotEmpty() && it.all { s -> s.id in expected } }
+            }
         }
 
         fun tryInstall(trigger: FeatureInstall.Trigger) {

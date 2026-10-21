@@ -1,10 +1,6 @@
 package io.github.clearkit.starter.hook.features.entries
 
 import android.app.Activity
-import android.app.AlarmManager
-import android.app.PendingIntent
-import android.content.Context
-import android.content.Intent
 import io.github.clearkit.starter.hook.runtime.FeatureRuntime
 import io.github.clearkit.starter.hook.runtime.ModuleLog
 import io.github.clearkit.starter.hook.runtime.SettingsWriter
@@ -46,17 +42,7 @@ object HostSettingsSheet {
         override val pendingRestart: Set<String> get() = SettingsWriter.pendingRestart
 
         override fun restart(activity: Activity) {
-            SettingsWriter.requestRootRestart(activity) { rooted ->
-                if (rooted) return@requestRootRestart
-                // 没有根权限：定一个马上打开【宿主】的闹钟，再结束进程
-                val launch = activity.packageManager.getLaunchIntentForPackage(activity.packageName)
-                if (launch == null) { HostToast.show(activity, "请手动重开【宿主】"); return@requestRootRestart }
-                launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
-                val pending = PendingIntent.getActivity(activity, 0x6263, launch, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_CANCEL_CURRENT)
-                runCatching { (activity.getSystemService(Context.ALARM_SERVICE) as AlarmManager).set(AlarmManager.RTC, System.currentTimeMillis() + 400, pending) }
-                activity.finishAffinity()
-                android.os.Process.killProcess(android.os.Process.myPid())
-            }
+            io.github.clearkit.starter.hook.runtime.HostRestart.restart(activity) { a -> HostToast.show(a, "请手动重开【宿主】", "从最近任务里关掉再打开") }
         }
 
         override fun openApp(activity: Activity, route: String?) = ModuleLauncher.open(activity, route ?: "home")

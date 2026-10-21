@@ -30,6 +30,10 @@ object BridgeClient {
         io.execute { onResult(call(context, method, json, arg)) }
     }
 
+    /** 只试一次、不握手（Application 建好之前用：那时没有页面可以拉起握手页）。不要在主线程调用。 */
+    fun callDirect(context: Context, method: String, json: String? = null, arg: String? = null): Bundle? =
+        attempt(context, method, Bundle().apply { if (json != null) putString(Bridge.KEY_JSON, json) }, arg)
+
     /** Blocking call; never on the main thread. Returns null when the app is unreachable. */
     fun call(context: Context, method: String, json: String? = null, arg: String? = null): Bundle? {
         val extras = Bundle().apply { if (json != null) putString(Bridge.KEY_JSON, json) }
@@ -43,7 +47,7 @@ object BridgeClient {
     } catch (e: IllegalArgumentException) {
         null // provider not visible (yet) or app not installed
     } catch (e: SecurityException) {
-        ModuleLog.w("bridge refused $method", e)
+        ModuleLog.w("bridge refused $method: ${e.message?.take(160)}", e)
         null
     } catch (e: Exception) {
         ModuleLog.w("bridge call $method failed", e)

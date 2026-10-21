@@ -47,6 +47,21 @@ class ModuleApp : Application() {
         // 全自动多版本适配：每次启动在后台判断一次，需要时用 DexKit 本机扫描；另外每 6 小时定时检查
         hostAdapter.check("【模块】启动")
         hostAdapter.schedulePeriodic()
+        // App 正好在运行时【宿主】升级了：马上在后台适配，用户第一次打开新版时表已经在了（不在运行时由定时检查和首次打开时的请求兜底）
+        runCatching {
+            val filter = android.content.IntentFilter().apply {
+                addAction(Intent.ACTION_PACKAGE_REPLACED)
+                addAction(Intent.ACTION_PACKAGE_ADDED)
+                addDataScheme("package")
+            }
+            val receiver = object : android.content.BroadcastReceiver() {
+                override fun onReceive(context: android.content.Context, intent: Intent) {
+                    val pkg = intent.data?.schemeSpecificPart ?: return
+                    if (HostBuild.channelOf(pkg) != null) hostAdapter.checkNow("【宿主】升级到新版本", pkg)
+                }
+            }
+            if (android.os.Build.VERSION.SDK_INT >= 33) registerReceiver(receiver, filter, RECEIVER_NOT_EXPORTED) else registerReceiver(receiver, filter)
+        }
         Thread { runCatching { hostAdapter.refresh() } }.start()
         // 【宿主】重新启动后（报告里带启动时间），待重启的改动已经生效，清掉提示
         scope.launch { status.status.collect { s -> if (s != null && s.startedAt > 0) settings.hostStarted(s.startedAt) } }

@@ -140,4 +140,51 @@ class FeatureInstallTest {
         assertEquals(State.FAILED, unadapted.state)
         assertEquals(1, errors)
     }
+
+    @Test
+    fun recordsMissedOptionalSymbolsAndUninstallRollsBack() {
+        val f = FeatureInstall()
+        val install = FakeInstall(hooks = 2, fail = false)
+        assertTrue(f.attempt(FeatureInstall.Trigger.START, Conditions(), {
+            install.run()
+            MissRecorder.note("net.fastJsonParse")
+            MissRecorder.note("net.kotlinxDecode")
+        }))
+        assertEquals(setOf("net.fastJsonParse", "net.kotlinxDecode"), f.misses)
+        assertEquals(2, install.live)
+        // 换表后重装：撤下时钩子全部撤掉，状态回到没装，可以再装一次
+        f.uninstall()
+        assertEquals(0, install.live)
+        assertEquals(false, f.installed)
+        assertEquals(emptySet<String>(), f.misses)
+        assertTrue(f.attempt(FeatureInstall.Trigger.SYMBOLS, Conditions(), { install.run() }))
+        assertEquals(2, install.live)
+        assertEquals(emptySet<String>(), f.misses)
+    }
+
+    @Test
+    fun missesOutsideAnInstallAreIgnored() {
+        MissRecorder.note("x")
+        val f = FeatureInstall()
+        assertTrue(f.attempt(FeatureInstall.Trigger.START, Conditions(), {}))
+        assertEquals(emptySet<String>(), f.misses)
+    }
+
+    @Test
+    fun expectedAbsenceIsNotAProblem() {
+        val f = FeatureInstall()
+        val c = object : FeatureInstall.Conditions {
+            override val pausedBySafeMode = false
+            override val on = true
+            override fun crashBlocked(): String? = null
+            override fun missing() = "account.accessTokenStatic: 此版本没有"
+            override fun missingIsExpected() = true
+        }
+        f.attempt(FeatureInstall.Trigger.START, c, {})
+        assertEquals(State.UNAVAILABLE, f.state)
+        assertTrue(f.expected)
+        val g = FeatureInstall()
+        g.attempt(FeatureInstall.Trigger.START, Conditions(missingSymbol = "x: 未适配"), {})
+        assertEquals(false, g.expected)
+    }
 }

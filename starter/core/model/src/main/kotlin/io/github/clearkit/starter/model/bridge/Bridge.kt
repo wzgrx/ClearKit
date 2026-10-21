@@ -36,6 +36,11 @@ object Bridge {
     const val METHOD_SETTINGS_BATCH = "settings.batch"
     /** 【宿主】里的计数（这周挡下几条、开关起作用几次）：body 是 [HostStats]，App 存最近一份。 */
     const val METHOD_STATS = "host.stats"
+    /**
+     * 免 Root 加载（LSPatch / NPatch，没有 LSPosed 远程文件）时取本机适配表：arg 是“包名:版本号”，
+     * 回复 KEY_JSON 是 App 存的这一版本机表（没有时不带）。【宿主】拿到后存进自己的目录，下次启动直接用。
+     */
+    const val METHOD_SYMBOL_TABLE = "symbols.table"
     /** 让 App 用 root 重启【宿主】（不清数据）；回复 KEY_OK=false 表示没有 root，由【宿主】自己退回普通重启。 */
     const val METHOD_HOST_RESTART = "host.restart"
 
@@ -62,6 +67,8 @@ data class RuntimeStatus(
     val startedAt: Long = 0,
     /** 读得到 LSPosed 的远程设置；false 是免 Root 加载（LSPatch / NPatch 修补的【宿主】），设置从 App 拉取并缓存。 */
     val remoteSettings: Boolean = true,
+    /** 这次运行的适配报告：App 的适配页、首页和【宿主】里的卡片说同样的话。 */
+    val report: io.github.clearkit.starter.model.adapt.AdaptReport? = null,
 )
 
 @Serializable
@@ -72,8 +79,12 @@ data class FeatureStatus(
     /** 不是 ACTIVE / OFF 时的原因（中文）。 */
     val detail: String? = null,
 ) {
-    /** OBSERVING：本机适配的新版本上先观察（只记录、不改行为），契约验证通过后才生效。 */
-    enum class State { ACTIVE, OFF, UNAVAILABLE, FAILED, CRASH_DISABLED, SAFE_MODE_OFF, OBSERVING }
+    /**
+     * OBSERVING：本机适配的新版本上先观察（只记录、不改行为），契约验证通过后才生效。
+     * RESTART_PENDING：已经装上，但它在启动时就要起作用（开屏、底栏……），这次运行里适配表来晚了，重开【宿主】后生效。
+     * 旧版 App 不认识新状态时按 coerceInputValues 回退成默认值 UNAVAILABLE。
+     */
+    enum class State { ACTIVE, OFF, UNAVAILABLE, FAILED, CRASH_DISABLED, SAFE_MODE_OFF, OBSERVING, RESTART_PENDING }
 }
 
 /**

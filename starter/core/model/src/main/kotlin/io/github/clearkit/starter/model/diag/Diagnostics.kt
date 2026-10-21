@@ -22,6 +22,7 @@ object Diagnostics {
         PROBLEM("出错", setOf(FeatureStatus.State.FAILED, FeatureStatus.State.CRASH_DISABLED)),
         MISSING("不可用", setOf(FeatureStatus.State.UNAVAILABLE)),
         OBSERVING("观察中", setOf(FeatureStatus.State.OBSERVING, FeatureStatus.State.SAFE_MODE_OFF)),
+        RESTART("待重开", setOf(FeatureStatus.State.RESTART_PENDING)),
         ACTIVE("生效", setOf(FeatureStatus.State.ACTIVE)),
         OFF("已关闭", setOf(FeatureStatus.State.OFF)),
     }
@@ -34,6 +35,7 @@ object Diagnostics {
         FeatureStatus.State.UNAVAILABLE -> "不可用"
         FeatureStatus.State.FAILED -> "出错"
         FeatureStatus.State.CRASH_DISABLED -> "崩溃后停用"
+        FeatureStatus.State.RESTART_PENDING -> "重开后生效"
     }
 
     fun filter(features: List<FeatureStatus>, query: String, filter: Filter): List<FeatureStatus> = features.filter { f ->

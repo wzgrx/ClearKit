@@ -4,16 +4,23 @@ import io.github.clearkit.starter.hook.features.entries.HostSettingsSheet
 import io.github.clearkit.starter.hook.runtime.Feature
 import io.github.clearkit.starter.hook.runtime.FeatureRuntime
 import io.github.clearkit.starter.hook.runtime.FeatureScope
-import io.github.clearkit.starter.hook.ui.HostToast
+import io.github.clearkit.starter.hook.ui.AdaptCard
+import io.github.clearkit.starter.model.adapt.AdaptCardText
 import io.github.clearkit.starter.model.settings.Settings
+import io.github.clearkit.starter.model.settings.SettingsReader
 
 /**
- * “提示模块运行信息”：【宿主】第一个页面打开后提示一次模块已加载、适配的版本和生效的功能数；
- * 提示上的“设置”打开宿主里的设置窗。用通用的页面回调（不依赖宿主的类），所以没适配的版本也会提示。
+ * 启动提示（6.13）：【宿主】第一个页面出来后，在顶部卡片里说一行——
+ * 平时“已加载 · n 项生效”；这个版本第一次冷启动时“已适配 x.y.z · 全部正常”；有功能用不了 / 要重开时用橙色写出来，
+ * 点“看看”展开成完整的结果卡片。关了“提示模块运行信息”时平时不说，只有出问题才说。
+ * 不依赖【宿主】的类（用页面回调），没适配好的版本也能提示；这次运行里弹过适配结果卡片就不再说。
  */
 object LoadedInfoFeature : Feature("module.loadedInfo", "提示模块运行信息") {
     override val switches = listOf(Settings.Module.showInfo)
     override val keepInSafeMode = true
+
+    /** 关了提示也要装：出问题时仍要告诉用户。 */
+    override fun isOn(settings: SettingsReader): Boolean = true
 
     @Volatile
     private var shown = false
@@ -22,20 +29,20 @@ object LoadedInfoFeature : Feature("module.loadedInfo", "提示模块运行信�
         onActivityResumed { activity ->
             if (shown) return@onActivityResumed
             shown = true
-            activity.window.decorView.postDelayed({ show(activity) }, 1500)
+            activity.window.decorView.postDelayed({ show(activity, settings[Settings.Module.showInfo]) }, 1500)
         }
     }
 
-    private fun show(activity: android.app.Activity) {
-        if (activity.isFinishing) return
+    private fun show(activity: android.app.Activity, showInfo: Boolean) {
+        // 适配卡片正显示（这次运行在热适配）：结果卡片会说清楚，不再叠一条提示，也不用掉“第一次”的标记
+        if (activity.isFinishing || AdaptCard.showing) return
         val runtime = FeatureRuntime.current ?: return
-        val status = runtime.status()
-        val active = status.features.count { it.state == io.github.clearkit.starter.model.bridge.FeatureStatus.State.ACTIVE }
-        val detail = if (status.adapted) "已适配【宿主】${runtime.versionName}，$active 个功能生效" else "这个版本还没适配，打开【模块】会自动适配"
-        // 放在顶部，不挡宿主的底栏；适配卡片正在顶部时放底部，免得叠在一起
-        HostToast.show(
-            activity, "【模块】${runtime.moduleVersionName} 已加载", detail, "设置",
-            top = !io.github.clearkit.starter.hook.ui.AdaptCard.showing,
-        ) { HostSettingsSheet.open(activity) }
+        val report = runtime.adaptReport()
+        val first = runtime.consumeFirstForVersion()
+        val (line, warn) = AdaptCardText.loadedLine(report, first)
+        if (!showInfo && !warn) return
+        AdaptCard.loaded(activity, "【模块】 ${runtime.moduleVersionName} 已加载", line, warn, if (warn) "看看" else "设置") {
+            if (warn) AdaptCard.result(activity, report) else HostSettingsSheet.open(activity)
+        }
     }
 }

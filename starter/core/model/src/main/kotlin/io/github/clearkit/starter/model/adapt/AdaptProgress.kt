@@ -32,14 +32,39 @@ object AdaptCardText {
     /** 进度条位置 0–1。 */
     fun fraction(done: Int, total: Int): Float = if (total <= 0) 0f else (done.toFloat() / total).coerceIn(0f, 1f)
 
-    /** 结果卡片的副标题（查找状态在下面的进度行里，这里不重复）。 */
-    fun result(found: Int, total: Int, active: Int): String =
-        if (found >= total) "全部找到，$active 个功能已生效" else "$active 个功能已生效"
-
     /** 适配完成后的标题。 */
     fun adaptedTitle(versionName: String): String = "已适配【宿主】 $versionName"
 
-    /** 有找不到的符号时的说明（全部找到时 null）。 */
-    fun missingNote(found: Int, total: Int): String? =
-        (total - found).takeIf { it > 0 }?.let { "$it 处没找到，依赖它们的功能暂不可用" }
+    /** 结果卡片的标题：有用不了的写出个数。 */
+    fun resultTitle(r: AdaptReport): String =
+        if (r.unavailable.isEmpty()) adaptedTitle(r.hostVersionName) else "已适配 ${r.hostVersionName} · ${r.unavailable.size} 项用不了"
+
+    /** 结果卡片的副标题。 */
+    fun resultSubtitle(r: AdaptReport): String = when {
+        r.restart.isNotEmpty() -> "${r.active} 项已生效，重开一次后全部生效"
+        r.unavailable.isNotEmpty() -> "${r.active} 项已生效；下面这些这一版找不到要用的地方"
+        r.observing > 0 -> "${r.active} 项已生效，${r.observing} 项先观察，用到时自动确认"
+        else -> "全部找到，${r.active} 项已生效"
+    }
+
+    /** 查找情况一行：“找到 99 / 99 处”。 */
+    fun foundLine(r: AdaptReport): String = "找到 ${r.found.coerceAtMost(r.total)} / ${r.total} 处" + if (r.local) " · 本机适配" else ""
+
+    /** “重开后生效 7 项”下面的功能名：先列 [limit] 个，多的用“等”。 */
+    fun restartList(r: AdaptReport, limit: Int = 5): String =
+        r.restart.take(limit).joinToString(" · ") + if (r.restart.size > limit) " 等" else ""
+
+    /**
+     * 启动时的一行提示（平时 / 重开后）：第一次用这个版本时说“已适配”；有问题时写出问题，[warn] 为真用橙色。
+     * 返回 (副标题, warn)。
+     */
+    fun loadedLine(r: AdaptReport, firstForVersion: Boolean): Pair<String, Boolean> = when {
+        r.unavailable.isNotEmpty() -> "${r.active} 项生效 · ${r.unavailable.size} 项这一版用不了" to true
+        r.restart.isNotEmpty() -> "${r.active} 项生效 · ${r.restart.size} 项重开后生效" to true
+        firstForVersion -> "已适配 ${r.hostVersionName} · ${r.active} 项生效 · 全部正常" to false
+        else -> "${r.active} 项生效" to false
+    }
+
+    /** 重开会打断正在播放的内容时的提醒。 */
+    fun restartWarning(playing: Boolean): String = if (playing) "会中断正在播放的内容，几秒后自动打开、回到首页" else "几秒后自动打开，回到首页"
 }

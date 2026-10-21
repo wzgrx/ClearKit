@@ -54,4 +54,16 @@ class SymbolCatalogTest {
         .replace(Regex("/\\*[\\s\\S]*?\\*/"), "")
         .lines().map { it.substringBefore("// ").trim() }.filter { it.isNotEmpty() }
         .joinToString("\n")
+
+    @Test
+    fun `channel absence covers symbols missing from every bundled build of that channel`() {
+        // 某个渠道每个内置版本都标了“没有”的符号，新版本本机适配找不到时不算缺失
+        for (channel in HostBuild.Channel.entries) {
+            val builds = HostBuild.entries.filter { it.channel == channel }.map { it.name }
+            SymbolCatalog.channelAbsent(channel).forEach { id ->
+                val s = SymbolCatalog.all.first { it.id == id }
+                assertEquals(id, true, builds.all { it in s.absentIn })
+            }
+        }
+    }
 }

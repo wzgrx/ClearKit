@@ -82,7 +82,8 @@ object SettingsWriter {
      * 请 App 用 root 重启【宿主】；没有 root 时回调 false，由调用方退回到普通重启（重开首页再结束进程）。
      */
     fun requestRootRestart(context: Context, onResult: (Boolean) -> Unit) {
-        BridgeClient.post(context.applicationContext, Bridge.METHOD_HOST_RESTART) { reply ->
+        // 带上自己的包名：两个渠道都装着时，App 重开的是发请求的这一个
+        BridgeClient.post(context.applicationContext, Bridge.METHOD_HOST_RESTART, arg = context.packageName) { reply ->
             val rooted = reply?.getBoolean(Bridge.KEY_OK) == true
             main.post { onResult(rooted) }
         }

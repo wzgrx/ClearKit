@@ -47,8 +47,16 @@ internal object BridgeHandlers {
         put(Bridge.METHOD_HOST_ADAPT) { c ->
             // 【宿主】启动时没有可用的符号表：后台判断并本机扫描，结果经 LSPosed 远程文件送回，【宿主】那边轮询后热适配
             val pkg = c.arg?.substringBefore(':')?.takeIf { it.isNotEmpty() }
-            c.app.hostAdapter.check("【宿主】启动时请求（${c.arg.orEmpty()}）", pkg)
+            // 【宿主】开着、在等：直接跑（不进系统后台队列，那里可能被延后几十秒）
+            if (pkg != null) c.app.hostAdapter.checkNow("【宿主】启动时请求（${c.arg.orEmpty()}）", pkg)
+            else c.app.hostAdapter.check("【宿主】启动时请求（${c.arg.orEmpty()}）", pkg)
             bridgeOk().apply { putString(Bridge.KEY_JSON, "已开始检查") }
+        }
+        put(Bridge.METHOD_SYMBOL_TABLE) { c ->
+            // 免 Root 加载的【宿主】没有 LSPosed 远程文件：直接把本机表交给它（它存进自己的目录）
+            val vc = c.arg?.substringAfter(':')?.toLongOrNull()
+            val text = vc?.let { c.app.hostAdapter.localTable(it) }?.takeIf { it.isFile }?.readText()
+            bridgeOk().apply { if (text != null) putString(Bridge.KEY_JSON, text) }
         }
         put(Bridge.METHOD_HOST_ADAPT_STATUS) { c ->
             // 【宿主】里的适配卡片每半秒来问一次进度
@@ -58,7 +66,7 @@ internal object BridgeHandlers {
         put(Bridge.METHOD_HOST_RESTART) { c ->
             // force-stop 会结束调用方本身，所以先回复、再在后台执行。
             val rooted = HostControl.rootAvailable()
-            val pkg = c.app.status.status.value?.hostPackage
+            val pkg = c.arg?.takeIf { io.github.clearkit.starter.model.HostBuild.channelOf(it) != null } ?: c.app.status.status.value?.hostPackage
             if (rooted && pkg != null) Thread({ runBlocking { HostControl.restart(c.app, pkg) } }, "bc-restart").apply { isDaemon = true }.start()
             Bundle().apply { putBoolean(Bridge.KEY_OK, rooted && pkg != null) }
         }

@@ -32,9 +32,9 @@ class HostSymbols(table: SymbolTable?, private val loader: ClassLoader) {
 
     fun clazz(symbol: ClassSymbol): Class<*> = linker.clazz(symbol)
     fun method(symbol: MethodSymbol): Executable = linker.method(symbol)
-    fun methodOrNull(symbol: MethodSymbol): Executable? = linker.methodOrNull(symbol)
+    fun methodOrNull(symbol: MethodSymbol): Executable? = linker.methodOrNull(symbol).also { if (it == null) MissRecorder.note(symbol.id) }
     fun field(symbol: FieldSymbol): Field = linker.field(symbol)
-    fun available(symbol: Symbol): Boolean = linker.available(symbol)
+    fun available(symbol: Symbol): Boolean = linker.available(symbol).also { if (!it) MissRecorder.note(symbol.id) }
 
     /** [member]（[method] 等查出来的对象）是哪个符号。 */
     fun idOf(member: Any): String? = linker.idOf(member)
@@ -70,6 +70,28 @@ class HostSymbols(table: SymbolTable?, private val loader: ClassLoader) {
             return runCatching { stream.bufferedReader().use { SymbolTable.fromJson(it.readText()) } }
                 .onFailure { ModuleLog.e("symbol table $versionCode unreadable", it) }
                 .getOrNull()
+        }
+    }
+}
+
+/**
+ * 安装功能时记下它想用、却在当前表里找不到的可选符号（[HostSymbols.methodOrNull]、[HostSymbols.available] 落空）。
+ * 功能照样装上，只是少了这部分效果；换上新表后这些符号找得到了，就把功能撤下重装（热适配）。
+ */
+object MissRecorder {
+    private val sink = ThreadLocal<MutableSet<String>?>()
+
+    fun note(id: String) {
+        sink.get()?.add(id)
+    }
+
+    internal fun <T> recording(into: MutableSet<String>, block: () -> T): T {
+        val previous = sink.get()
+        sink.set(into)
+        try {
+            return block()
+        } finally {
+            sink.set(previous)
         }
     }
 }

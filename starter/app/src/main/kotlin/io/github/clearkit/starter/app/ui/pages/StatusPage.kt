@@ -46,6 +46,7 @@ import io.github.clearkit.starter.model.HostBuild
 import io.github.clearkit.starter.model.bridge.FeatureStatus
 import io.github.clearkit.starter.model.bridge.FeatureStatus.State
 import io.github.clearkit.starter.model.settings.Settings
+import kotlinx.coroutines.launch
 
 /** 功能状态的文字和颜色。 */
 @Composable
@@ -59,6 +60,7 @@ private fun stateLabel(s: State): Pair<String, Color> {
         State.UNAVAILABLE -> "跳过" to c.textSecondary
         State.FAILED -> "出错" to c.danger
         State.CRASH_DISABLED -> "崩溃后停用" to c.danger
+        State.RESTART_PENDING -> "重开后生效" to c.warn
     }
 }
 
@@ -90,6 +92,14 @@ fun StatusPage() {
                 ) { host = it; filter = 0 }
             }
             val features = current?.features.orEmpty()
+            val pending = features.filter { it.state == State.RESTART_PENDING }
+            if (pending.isNotEmpty()) {
+                val context = androidx.compose.ui.platform.LocalContext.current
+                val scope = androidx.compose.runtime.rememberCoroutineScope()
+                Notice("重开【宿主】后 ${pending.size} 项生效：" + pending.take(5).joinToString("、") { it.title } + if (pending.size > 5) " 等" else "", io.github.clearkit.starter.app.ui.components.Tone.WARN, "立即重开") {
+                    current?.hostPackage?.let { pkg -> scope.launch { io.github.clearkit.starter.app.data.HostControl.restart(context, pkg) } }
+                }
+            }
             val ok = features.count { it.state == State.ACTIVE }
             val bad = features.count { it.state == State.FAILED || it.state == State.CRASH_DISABLED }
             val skipped = features.count { it.state == State.UNAVAILABLE || it.state == State.SAFE_MODE_OFF || it.state == State.OBSERVING }
@@ -107,13 +117,13 @@ fun StatusPage() {
             Spacer(Modifier.height(8.dp))
             val shown = features.filter { f ->
                 when (filter) {
-                    1 -> f.state == State.ACTIVE
+                    1 -> f.state == State.ACTIVE || f.state == State.RESTART_PENDING
                     2 -> f.state == State.UNAVAILABLE || f.state == State.SAFE_MODE_OFF || f.state == State.OBSERVING
                     3 -> f.state == State.FAILED || f.state == State.CRASH_DISABLED
                     4 -> f.state == State.OFF
                     else -> true
                 }
-            }.sortedBy { f -> listOf(State.FAILED, State.CRASH_DISABLED, State.ACTIVE, State.OBSERVING, State.SAFE_MODE_OFF, State.UNAVAILABLE, State.OFF).indexOf(f.state) }
+            }.sortedBy { f -> listOf(State.FAILED, State.CRASH_DISABLED, State.RESTART_PENDING, State.ACTIVE, State.OBSERVING, State.SAFE_MODE_OFF, State.UNAVAILABLE, State.OFF).indexOf(f.state) }
             androidx.compose.runtime.key(host, filter, shown.size) {
                 if (shown.isEmpty()) Notice("这一类没有功能")
                 shown.forEachIndexed { i, f -> FeatureRow(f, divider = i < shown.lastIndex) }

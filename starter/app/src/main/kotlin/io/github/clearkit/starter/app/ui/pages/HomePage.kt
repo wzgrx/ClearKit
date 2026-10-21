@@ -143,6 +143,21 @@ private fun StatusHero() {
             Tone.WARN, "需要适配", installed.filter { !it.ready }.joinToString("、") { "${it.channel?.label ?: it.packageName} ${it.versionName}" } + " 还没适配好",
             "打开一次【宿主】会自动适配；也可以在这里手动开始。", "去适配",
         ) { nav.open("adapt") }
+        reports.values.any { it.report?.restart?.isNotEmpty() == true } -> {
+            val r = reports.values.first { it.report?.restart?.isNotEmpty() == true }
+            val names = r.report!!.restart
+            val context = androidx.compose.ui.platform.LocalContext.current
+            val scope = androidx.compose.runtime.rememberCoroutineScope()
+            ProblemCard(
+                Tone.WARN, "待重开", "重开【宿主】后 ${names.size} 项生效", names.take(4).joinToString("、") + if (names.size > 4) " 等" else "", "立即重开",
+            ) { scope.launch { io.github.clearkit.starter.app.data.HostControl.restart(context, r.hostPackage) } }
+        }
+        reports.values.any { it.report?.unavailable?.isNotEmpty() == true } -> {
+            val issues = reports.values.flatMap { it.report?.unavailable.orEmpty() }
+            ProblemCard(
+                Tone.WARN, "这一版有功能用不了", "${issues.size} 项用不了，其余正常", issues.take(3).joinToString("、") { it.title } + if (issues.size > 3) " 等" else "", "看是哪些",
+            ) { nav.open("adapt") }
+        }
         failed.isNotEmpty() -> ProblemCard(
             Tone.WARN, "部分功能没生效", "${failed.size} 项没生效，其余正常", failed.take(3).joinToString("、") { it.title } + if (failed.size > 3) " 等" else "", "看是哪些",
         ) { nav.open("status") }

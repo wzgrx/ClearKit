@@ -36,4 +36,18 @@ object SymbolCatalog {
     val catalog: Catalog by lazy { Catalog(*groups.toTypedArray()) }
 
     val all: List<Symbol> get() = catalog.symbols
+
+    /**
+     * 这个渠道本来就没有的符号：在该渠道**每个**内置版本里都标了“这个版本没有”（absentIn）。
+     * 本机适配新版本时，这些符号找不到是正常的（例如只有国际版才有的入口），不算缺失、不提示。
+     */
+    fun channelAbsent(channel: io.github.clearkit.starter.model.HostBuild.Channel): Set<String> {
+        val builds = io.github.clearkit.starter.model.HostBuild.entries.filter { it.channel == channel }.map { it.name }
+        if (builds.isEmpty()) return emptySet()
+        return all.filter { s -> builds.all { it in s.absentIn } }.map { it.id }.toSet()
+    }
+
+    /** 按宿主包名取 [channelAbsent]；不认识的包名返回空。 */
+    fun channelAbsentFor(packageName: String): Set<String> =
+        io.github.clearkit.starter.model.HostBuild.channelOf(packageName)?.let(::channelAbsent).orEmpty()
 }

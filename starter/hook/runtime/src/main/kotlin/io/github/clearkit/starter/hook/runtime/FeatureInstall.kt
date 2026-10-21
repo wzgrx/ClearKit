@@ -25,6 +25,9 @@ internal class FeatureInstall {
         fun crashBlocked(): String?
         /** 缺的符号，没有为 null。 */
         fun missing(): String?
+
+        /** [missing] 缺的都是“这个版本 / 渠道本来就没有”的：算正常的“不支持”，不提示用户。 */
+        fun missingIsExpected(): Boolean = false
     }
 
     @Volatile
@@ -39,6 +42,30 @@ internal class FeatureInstall {
     var detail: String? = null
         private set
 
+    /** UNAVAILABLE 是因为这个版本本来就没有（不是适配失败）：不算问题，不提示。 */
+    @Volatile
+    var expected = false
+        private set
+
+    /** 装好时它想用、却没找到的可选符号（[MissRecorder]）。 */
+    @Volatile
+    var misses: Set<String> = emptySet()
+        private set
+
+    /** 装好时登记的撤销步骤，[uninstall] 用。 */
+    private var undo: List<() -> Unit> = emptyList()
+
+    /** 撤下（换表后重装用）：撤掉钩子、订阅、监听，回到没装的状态。 */
+    @Synchronized
+    fun uninstall() {
+        if (!installed) return
+        InstallRecorder.rollback(undo)
+        undo = emptyList()
+        misses = emptySet()
+        installed = false
+        set(State.OFF, null)
+    }
+
     /** 尝试安装；返回这次是否真的装上了。[install] 抛出的异常已在这里处理（[onError] 记日志）。 */
     @Synchronized
     fun attempt(trigger: Trigger, conditions: Conditions, install: () -> Unit, onError: (Throwable) -> Unit = {}): Boolean {
@@ -47,21 +74,24 @@ internal class FeatureInstall {
         if (conditions.pausedBySafeMode) return set(State.SAFE_MODE_OFF, "安全模式下暂停")
         if (!conditions.on) return set(State.OFF, null)
         conditions.crashBlocked()?.let { return set(State.CRASH_DISABLED, "上次导致【宿主】崩溃（$it）") }
-        conditions.missing()?.let { return set(State.UNAVAILABLE, it) }
+        conditions.missing()?.let { return set(State.UNAVAILABLE, it, expected = conditions.missingIsExpected()) }
         val undo = ArrayList<() -> Unit>()
+        val missed = HashSet<String>()
         return try {
-            InstallRecorder.recording(undo) { install() }
+            InstallRecorder.recording(undo) { MissRecorder.recording(missed) { install() } }
             installed = true
+            this.undo = undo
+            misses = missed
             set(State.ACTIVE, null)
             true
         } catch (t: NotInThisHost) {
             // 这一版【宿主】本来就没有这块：算“不支持”，不算失败
             InstallRecorder.rollback(undo)
-            set(State.UNAVAILABLE, t.message)
+            set(State.UNAVAILABLE, t.message, expected = true)
         } catch (t: SymbolUnavailable) {
             // 安装中途用到的符号：表里标了“这个版本没有”（DexAdapt 0.2 的 absent）同样算不支持；没适配上的照旧算失败
             InstallRecorder.rollback(undo)
-            if (t.absent) return set(State.UNAVAILABLE, t.message)
+            if (t.absent) return set(State.UNAVAILABLE, t.message, expected = true)
             set(State.FAILED, "${t.javaClass.simpleName}: ${t.message}")
             onError(t)
             false
@@ -73,9 +103,10 @@ internal class FeatureInstall {
         }
     }
 
-    private fun set(state: State, detail: String?): Boolean {
+    private fun set(state: State, detail: String?, expected: Boolean = false): Boolean {
         this.state = state
         this.detail = detail
+        this.expected = expected
         return false
     }
 }

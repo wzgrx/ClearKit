@@ -7,6 +7,7 @@ import io.github.clearkit.starter.hook.runtime.AdaptationEvents
 import io.github.clearkit.starter.hook.runtime.FeatureRuntime
 import io.github.clearkit.starter.hook.runtime.FeatureStopNotices
 import io.github.clearkit.starter.hook.runtime.HostActivities
+import io.github.clearkit.starter.hook.runtime.HostRestart
 import io.github.clearkit.starter.hook.runtime.HostVersion
 import io.github.clearkit.starter.hook.runtime.ModuleLog
 import io.github.clearkit.starter.hook.ui.AdaptCard
@@ -38,21 +39,23 @@ class ModuleEntry : XposedModule() {
             "loaded $moduleVersion in $processName api=$apiVersion framework=$frameworkName $frameworkVersion " +
                 "host=$pkg ${versionCode ?: "?"} ${build?.label ?: "未内置的版本"}",
         )
-        // 功能被自动停用时的提醒（熔断、崩溃保护）：“查看”打开 App 的功能状态。
+        // 功能被自动停用时的提醒（熔断、崩溃保护）：同一张顶部卡片，正忙时排队；“查看”打开 App 的功能状态。
         FeatureStopNotices.presenter = { activity, message, detail ->
-            HostToast.show(activity, message, detail, "查看", durationMs = 6000) { ModuleLauncher.open(activity, "status") }
+            AdaptCard.notice(activity, message, detail, "查看") { ModuleLauncher.open(activity, "status") }
         }
-        // 适配卡片：要重新适配时、装好或更新模块后第一次启动时出现，显示在当前页面顶部；换页面时卡片跟过去。
+        // 适配卡片：要重新适配时出现在当前页面顶部，换页面时跟过去；结果按报告分三档，要重开的可以一键重开。
+        AdaptCard.actions = object : AdaptCard.Actions {
+            override fun restart(activity: android.app.Activity) = HostRestart.restart(activity) { AdaptCard.restartFailed(it) }
+            override fun open(activity: android.app.Activity, route: String) = ModuleLauncher.open(activity, route)
+            override fun retry() { runtime?.retryAdaptation() }
+            override fun restartPending(): Int = runtime?.restartPendingCount ?: 0
+        }
         AdaptationEvents.listener = object : AdaptationEvents.Listener {
-            private fun page() = HostActivities.resumed()
+            private fun page() = HostActivities.foreground() ?: HostActivities.resumed()
             override fun onAdapting(versionName: String) = AdaptCard.adapting(page(), versionName)
-            override fun onVerifying(versionName: String) = AdaptCard.verifying(page(), versionName)
             override fun onProgress(done: Int, total: Int) = AdaptCard.progress(done, total)
-            override fun onAdapted(versionName: String, found: Int, total: Int, active: Int) =
-                AdaptCard.adapted(page(), versionName, found, total, active)
-            override fun onTimeout(versionName: String) = AdaptCard.timeout(page(), versionName) {
-                page()?.let { ModuleLauncher.open(it, "adapt") }
-            }
+            override fun onResult(report: io.github.clearkit.starter.model.adapt.AdaptReport, card: Boolean) = AdaptCard.result(page(), report, card)
+            override fun onTimeout(versionName: String, detail: String) = AdaptCard.timeout(page(), versionName, detail)
         }
         HostActivities.onResumed { AdaptCard.moveTo(it) }
         runCatching {

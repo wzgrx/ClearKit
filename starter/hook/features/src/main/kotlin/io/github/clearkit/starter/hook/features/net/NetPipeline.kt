@@ -143,6 +143,9 @@ object NetPipeline : Feature("net.rewrite", "接口数据改写") {
 
 /** 一个按接口数据净化的功能：声明自己的规则，安装时登记到 [NetPipeline]。 */
 abstract class NetRuleFeature(id: String, title: String) : Feature(id, title) {
+    /** 规则都靠接口数据改写：它换表后才装好时，这个功能在启动时就漏了（开屏、底栏这类要重开）。 */
+    override val dependsOn: Feature get() = NetPipeline
+
     open val rules: List<JsonRule> = emptyList()
 
     override fun FeatureScope.install() {

@@ -24,6 +24,15 @@ abstract class Feature(val id: String, val title: String) {
     /** Whether the feature still runs in safe mode (ad and splash cleanup do). */
     open val keepInSafeMode: Boolean = false
 
+    /**
+     * 只在【宿主】启动时起作用（开屏、底栏、启动时读的配置……）：这次运行里适配表来晚了、它（或它依赖的 [dependsOn]）
+     * 是换表后才装好的，要重开【宿主】才生效。适配卡片据此列出“重开后生效”的功能。
+     */
+    open val startupOnly: Boolean = false
+
+    /** 它靠另一个功能起作用（改接口数据的功能都靠接口数据改写）：那个功能换表后才装好时，它也算“这次运行里晚了”。 */
+    open val dependsOn: Feature? = null
+
     /** Installs hooks. Called once, on the main thread of the host, before Application.onCreate. */
     abstract fun FeatureScope.install()
 

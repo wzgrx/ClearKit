@@ -15,6 +15,9 @@ import io.github.clearkit.starter.model.settings.Settings
 object AdSdkFeature : Feature("cleanup.adSdk", "拦截广告联盟的广告") {
     override val switches = listOf(Settings.Cleanup.adSdk)
 
+    /** 开屏广告在启动时就加载：适配晚了的那次运行拦不到，重开后生效。 */
+    override val startupOnly = true
+
     override fun FeatureScope.install() {
         var hooked = 0
         for (name in AdSdks.ENTRY_CLASSES) {
