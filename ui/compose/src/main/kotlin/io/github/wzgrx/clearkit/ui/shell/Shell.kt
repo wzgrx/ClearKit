@@ -4,11 +4,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
-import androidx.compose.animation.core.spring
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -31,6 +27,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
@@ -43,7 +40,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.kyant.backdrop.backdrops.layerBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
@@ -54,6 +50,7 @@ import io.github.wzgrx.clearkit.ui.components.LocalCardFlow
 import io.github.wzgrx.clearkit.ui.components.LocalHideSectionLabels
 import io.github.wzgrx.clearkit.ui.components.Text
 import io.github.wzgrx.clearkit.ui.icons.ClearIcons
+import io.github.wzgrx.clearkit.ui.motion.ClearMotion
 import io.github.wzgrx.clearkit.ui.motion.Glass
 import io.github.wzgrx.clearkit.ui.motion.LocalGlassBackdrop
 import io.github.wzgrx.clearkit.ui.theme.Clear
@@ -61,9 +58,13 @@ import io.github.wzgrx.clearkit.ui.theme.Clear
 /** 页签页底部要让出的高度（悬浮底栏 + 系统导航条）；二级页是 0。 */
 val LocalTabBarInset = staticCompositionLocalOf { 0.dp }
 
+/** 外壳里正在显示的那一屏：页签页（[route] 为空，[tab] 是第几个页签）或压在上面的二级页。 */
+private data class Screen(val route: String?, val depth: Int, val tab: Int)
+
 /**
  * App 外壳（规范 v1 “框架”）：底部四个页签（首页 · 功能 · 特色页 · 我的），二级页压在上面。
- * 页签页上浮一条液态玻璃底栏，内容从它下面滚过去；二级页向前从右边推进来，返回往右退。
+ * 页签页上浮一条液态玻璃底栏，内容从它下面滚过去；进二级页时底栏往下滑走，回来时滑上来。
+ * 转场见 [ClearMotion]：二级页从右边推进来（旧页先淡出、新页再淡入，不重影），返回反向；页签之间 fade-through。
  * [entry] 是从宿主、通知打开的页：是页签就停在那个页签，不是就只显示那一页，返回即 [onExit]。
  * 每页的滚动位置、展开的分组用状态容器记住，返回时原样恢复。
  */
@@ -87,38 +88,51 @@ fun ClearShell(
     }
     LaunchedEffect(Unit) { if (!single) onStart(nav) }
     val c = Clear.colors
-    val backdrop = rememberLayerBackdrop()
-    val capture = Clear.glass && Glass.supported
+    val reduceMotion = Clear.reduceMotion
     val navBar = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    // 底栏的显隐：弹簧，只在绘制层里读（页面不用重新测量）
+    val barVisible = stack.isEmpty() && !single
+    val barProgress = remember { Animatable(if (barVisible) 1f else 0f) }
+    LaunchedEffect(barVisible, reduceMotion) {
+        val target = if (barVisible) 1f else 0f
+        if (reduceMotion) barProgress.snapTo(target) else barProgress.animateTo(target, if (barVisible) ClearMotion.BarShow else ClearMotion.BarHide)
+    }
+    val barShown by remember { derivedStateOf { barProgress.value > 0f } }
+    // 液态玻璃要取页面内容：只在底栏露出来时取（二级页上不多画一遍）
+    val backdrop = rememberLayerBackdrop()
+    val capture = Clear.glass && Glass.supported && (barVisible || barShown)
     CompositionLocalProvider(LocalNavigator provides nav) {
         Box(Modifier.fillMaxSize().background(c.ground)) {
             Box(Modifier.fillMaxSize().then(if (capture) Modifier.layerBackdrop(backdrop) else Modifier)) {
-                val top = stack.lastOrNull()
-                val reduceMotion = Clear.reduceMotion
                 AnimatedContent(
-                    targetState = top to stack.size,
+                    targetState = Screen(stack.lastOrNull(), stack.size, current),
                     transitionSpec = {
-                        if (reduceMotion) return@AnimatedContent EnterTransition.None togetherWith ExitTransition.None
-                        val forward = targetState.second >= initialState.second
-                        val motion = spring<IntOffset>(dampingRatio = 0.85f, stiffness = 500f)
-                        (slideInHorizontally(motion) { if (forward) it / 4 else -it / 4 } + fadeIn()) togetherWith
-                            (slideOutHorizontally(motion) { if (forward) -it / 6 else it / 6 } + fadeOut())
-                    },
-                    label = "page",
-                ) { (route, depth) ->
-                    if (route == null) {
-                        val t = tabs[current]
-                        CompositionLocalProvider(LocalTabBarInset provides TabBarSize.space + navBar) {
-                            saved.SaveableStateProvider("tab:${t.key}") { tab(t) }
+                        when {
+                            reduceMotion -> EnterTransition.None togetherWith ExitTransition.None
+                            initialState.route == null && targetState.route == null -> ClearMotion.tabIn() togetherWith ClearMotion.tabOut()
+                            targetState.depth >= initialState.depth -> ClearMotion.pushEnter() togetherWith ClearMotion.pushExit()
+                            else -> ClearMotion.popEnter() togetherWith ClearMotion.popExit()
                         }
-                    } else {
-                        saved.SaveableStateProvider(pageKey(depth, route)) { page(route) }
+                    },
+                    contentKey = { if (it.route == null) "tab:${it.tab}" else pageKey(it.depth, it.route) },
+                    label = "page",
+                ) { screen ->
+                    // 每一页画自己的底色：转场时两页不会透明叠在一起
+                    Box(Modifier.fillMaxSize().background(c.ground)) {
+                        if (screen.route == null) {
+                            val t = tabs[screen.tab.coerceIn(0, tabs.lastIndex)]
+                            CompositionLocalProvider(LocalTabBarInset provides TabBarSize.space + navBar) {
+                                saved.SaveableStateProvider("tab:${t.key}") { tab(t) }
+                            }
+                        } else {
+                            saved.SaveableStateProvider(pageKey(screen.depth, screen.route)) { page(screen.route) }
+                        }
                     }
                 }
             }
-            if (stack.isEmpty()) {
+            if (barVisible || barShown) {
                 CompositionLocalProvider(LocalGlassBackdrop provides if (capture) backdrop else null) {
-                    GlassTabBar(tabs, current, bottom = navBar, modifier = Modifier.align(Alignment.BottomCenter)) { current = it }
+                    GlassTabBar(tabs, current, bottom = navBar, modifier = Modifier.align(Alignment.BottomCenter), progress = { barProgress.value }) { current = it }
                 }
             }
         }

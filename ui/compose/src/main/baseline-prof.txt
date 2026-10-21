@@ -1,0 +1,4 @@
+# 基线配置：安装时就把净界家族共用界面库编译成机器码（从 GitHub 覆盖安装的 APK 没有云端配置，
+# 不写这份的话，页面切换、底栏、卡片这些代码要靠解释器跑，等系统空闲时才慢慢编译）。各模块打包时自动合进去。
+HSPLio/github/wzgrx/clearkit/ui/**;->**(**)**
+Lio/github/wzgrx/clearkit/ui/**;
