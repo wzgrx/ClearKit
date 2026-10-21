@@ -25,3 +25,19 @@ App 模块 `implementation(project(":clearkit-ui"))`。版本跟模块自己的�
 
 模块只管强调色、文字转换（`ClearTheme(textTransform = …)`，哔哩净界的简繁）和自己的页面。
 宿主进程里的界面（设置窗、工具盘、提示条）是纯 View，后面在 `ui/view` 里加。
+
+## 宿主端（View）：`ui/view`
+
+跑在宿主进程里的界面（设置抽屉、工具盘、提示）不能用 Compose 和模块资源，用这个小库拿同一套规范 v1 的颜色和尺寸：
+
+```kotlin
+// settings.gradle.kts
+include(":clearkit-view")
+project(":clearkit-view").projectDir = file("../clear-kit/ui/view")
+// hook/ui/build.gradle.kts
+implementation(project(":clearkit-view"))
+```
+
+- `clearViewColors(ViewAccent.Teal / Rose, dark)`：ARGB 整数的中性色和强调色（和 App 端 `clearColors` 同值）。
+- `ViewRadius`、`ViewType`：圆角（dp）和字号（sp）。
+
