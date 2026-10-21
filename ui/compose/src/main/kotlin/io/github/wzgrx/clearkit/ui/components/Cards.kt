@@ -1,6 +1,18 @@
 package io.github.wzgrx.clearkit.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.material3.Icon
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.style.TextOverflow
+import io.github.wzgrx.clearkit.ui.icons.ClearIcons
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Spacer
@@ -86,16 +98,26 @@ fun InCard(last: Boolean = false, content: @Composable ColumnScope.() -> Unit) {
     CardSegment(top, last) { Column(Modifier.fillMaxWidth().padding(horizontal = CardPadding, vertical = 10.dp), content = content) }
 }
 
-/** 分组标题：开一张新卡片，标题写在卡片顶部。 */
+/**
+ * 分组标题（规范 v1）：写在卡片外、左上方的一行小字，下面的行拼成一张新卡片。
+ * 示意图视图里列表收起时（[LocalHideSectionLabels]）不画，剩下的行接在一起。
+ */
 @Composable
-fun SectionLabel(text: String) {
+fun SectionLabel(text: String, action: String? = null, onAction: (() -> Unit)? = null) {
     if (LocalHideSectionLabels.current) return
     CloseCard()
-    val flow = LocalCardFlow.current
-    flow.open = true
-    Spacer(Modifier.height(4.dp))
-    CardSegment(top = true, bottom = false) {
-        Text(text, style = Clear.type.label, color = Clear.colors.textSecondary, modifier = Modifier.padding(start = CardPadding, end = CardPadding, top = 14.dp, bottom = 2.dp))
+    LocalCardFlow.current.open = false
+    if (action == null || onAction == null) {
+        Text(text, style = Clear.type.label, color = Clear.colors.textSecondary, modifier = Modifier.padding(horizontal = PageGutter + 4.dp).padding(top = 2.dp, bottom = 8.dp))
+        return
+    }
+    // 右边带一个文字动作（“清除记录”“全部”）
+    Row(Modifier.fillMaxWidth().padding(start = PageGutter + 4.dp, end = PageGutter - 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(text, style = Clear.type.label, color = Clear.colors.textSecondary, modifier = Modifier.weight(1f).padding(top = 2.dp, bottom = 8.dp))
+        Text(
+            action, style = Clear.type.label, color = Clear.colors.accentInk,
+            modifier = Modifier.clip(RoundedCornerShape(Radius.block)).clickable(role = Role.Button, onClick = onAction).padding(horizontal = 8.dp, vertical = 4.dp),
+        )
     }
 }
 
@@ -132,6 +154,46 @@ fun Card(modifier: Modifier = Modifier, padding: Boolean = true, content: @Compo
             .then(if (padding) Modifier.padding(horizontal = CardPadding, vertical = 14.dp) else Modifier),
         content = content,
     )
+}
+
+/**
+ * 入口卡（“我的”里的记录、足迹）：强调浅底的图标、标题、一句说明和箭头，整张可点；下面可放缩略图、计数小块（[CountChip]）。
+ */
+@Composable
+fun EntryCard(icon: ImageVector, title: String, subtitle: String, onClick: () -> Unit, content: @Composable ColumnScope.() -> Unit = {}) {
+    CloseCard()
+    val c = Clear.colors
+    Column(
+        Modifier.padding(horizontal = PageGutter).padding(bottom = Space.card).fillMaxWidth().clip(RoundedCornerShape(CardRadius)).background(c.surface)
+            .clickable(role = Role.Button, onClick = onClick).padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(36.dp).clip(RoundedCornerShape(Radius.icon)).background(c.accentSoft), contentAlignment = Alignment.Center) {
+                Icon(icon, contentDescription = null, tint = c.accentInk, modifier = Modifier.size(20.dp))
+            }
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.weight(1f)) {
+                Text(title, style = Clear.type.itemStrong, color = c.text)
+                Text(subtitle, style = Clear.type.caption, color = c.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            Icon(ClearIcons.Chevron, contentDescription = null, tint = c.textTertiary, modifier = Modifier.size(18.dp))
+        }
+        content()
+    }
+}
+
+/** 计数小块：浅灰胶囊里“名字 数字”，点了去对应的页。 */
+@Composable
+fun CountChip(label: String, count: String, onClick: () -> Unit) {
+    val c = Clear.colors
+    Row(
+        Modifier.height(32.dp).clip(RoundedCornerShape(16.dp)).background(c.muted).clickable(role = Role.Button, onClick = onClick).padding(horizontal = 12.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Text(label, style = Clear.type.label, color = c.text)
+        Text(count, style = Clear.type.label, color = c.textSecondary)
+    }
 }
 
 /** 页脚留白（列表最后一行和底部按钮之间）。 */

@@ -148,7 +148,7 @@ fun PageHeader(title: String, subtitle: String, onBack: (() -> Unit)? = null, ac
                 Text(subtitle, style = if (big) Clear.type.body.copy(fontSize = Clear.type.label.fontSize, lineHeight = Clear.type.label.lineHeight) else Clear.type.caption, color = c.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
-        Row(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(if (big) 8.dp else 0.dp), verticalAlignment = Alignment.CenterVertically) { actions() }
+        Row(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(if (big) 8.dp else 4.dp), verticalAlignment = Alignment.CenterVertically) { actions() }
     }
 }
 

@@ -101,14 +101,18 @@ fun ListRow(
     }
 }
 
-/** 点了进下一页的行：右边是当前值和箭头。 */
+/** 点了进下一页的行：右边是当前值和箭头。[icon] 给“我的”这类入口页画左边的图标；[valueTone] 为 OK 时值用绿色（“已适配”“已连接”）。 */
 @Composable
-fun NavRow(title: String, summary: String? = null, value: String? = null, divider: Boolean = true, enabled: Boolean = true, onClick: () -> Unit) {
+fun NavRow(
+    title: String, summary: String? = null, value: String? = null, divider: Boolean = true, enabled: Boolean = true,
+    icon: ImageVector? = null, valueTone: Tone? = null, onClick: () -> Unit,
+) {
     val c = Clear.colors
-    ListRow(title, summary, divider, enabled, onClick) {
+    val valueColor = when (valueTone) { Tone.OK -> c.ok; Tone.WARN -> c.warn; Tone.DANGER -> c.danger; else -> c.textSecondary }
+    ListRow(title, summary, divider, enabled, onClick, leading = icon?.let { { IconTile(it) } }) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
             if (value != null) {
-                Text(value, style = Clear.type.body, color = if (enabled) c.textSecondary else c.textDisabled, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 140.dp))
+                Text(value, style = Clear.type.body, color = if (enabled) valueColor else c.textDisabled, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 140.dp))
             }
             Icon(ClearIcons.Chevron, contentDescription = null, tint = if (enabled) c.textTertiary else c.textDisabled, modifier = Modifier.size(16.dp))
         }
@@ -137,8 +141,11 @@ fun ValueRow(title: String, summary: String? = null, value: String, divider: Boo
 
 /** 开关行：整行可点。[badge] 写“重开生效”这类标签。 */
 @Composable
-fun SwitchRow(title: String, summary: String? = null, checked: Boolean, divider: Boolean = true, enabled: Boolean = true, badge: String? = null, onChange: (Boolean) -> Unit) {
-    ListRow(title, summary, divider, enabled, onClick = { onChange(!checked) }, role = Role.Switch, badge = badge) {
+fun SwitchRow(
+    title: String, summary: String? = null, checked: Boolean, divider: Boolean = true, enabled: Boolean = true, badge: String? = null,
+    icon: ImageVector? = null, onChange: (Boolean) -> Unit,
+) {
+    ListRow(title, summary, divider, enabled, onClick = { onChange(!checked) }, role = Role.Switch, badge = badge, leading = icon?.let { { IconTile(it) } }) {
         ClearSwitch(checked, enabled)
     }
 }
@@ -186,5 +193,14 @@ fun HueTile(icon: ImageVector, hue: ClearHue, size: Dp = 36.dp) {
     val dark = Clear.colors.isDark
     Box(Modifier.size(size).clip(RoundedCornerShape(size * 0.31f)).background(hue.bg(dark)), contentAlignment = Alignment.Center) {
         Icon(icon, contentDescription = null, tint = hue.fg(dark), modifier = Modifier.size(size * 0.53f))
+    }
+}
+
+/** 入口行的图标：浅灰圆角方块里放正文色的线条图标（“我的”、设置窗里的入口）。 */
+@Composable
+fun IconTile(icon: ImageVector, size: Dp = 32.dp) {
+    val c = Clear.colors
+    Box(Modifier.size(size).clip(RoundedCornerShape(size * 0.31f)).background(c.muted), contentAlignment = Alignment.Center) {
+        Icon(icon, contentDescription = null, tint = c.text, modifier = Modifier.size(size * 0.56f))
     }
 }

@@ -32,6 +32,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import io.github.wzgrx.clearkit.ui.icons.ClearIcons
 import io.github.wzgrx.clearkit.ui.theme.Clear
@@ -105,8 +106,8 @@ fun LoadingState(text: String = "正在读取…") {
 @Composable
 fun EmptyState(title: String, detail: String? = null, action: String? = null, onAction: (() -> Unit)? = null) {
     Column(Modifier.fillMaxWidth().padding(horizontal = PageGutter, vertical = 24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text(title, style = Clear.type.itemStrong, color = Clear.colors.text)
-        detail?.let { Text(it, style = Clear.type.body, color = Clear.colors.textSecondary) }
+        Text(title, style = Clear.type.itemStrong, color = Clear.colors.text, textAlign = TextAlign.Center)
+        detail?.let { Text(it, style = Clear.type.body, color = Clear.colors.textSecondary, textAlign = TextAlign.Center) }
         if (action != null && onAction != null) TextButton(onClick = onAction) { Text(action, color = Clear.colors.accentInk) }
     }
 }

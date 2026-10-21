@@ -20,7 +20,7 @@ App 模块 `implementation(project(":clearkit-ui"))`。版本跟模块自己的�
 | `theme` | `ClearColors`（中性色共用，`ClearAccent.Teal` / `Rose` / `from(种子色)` 换强调色）、`ClearType` 九档字号、`ClearHue` 八个场景色相、`Radius`、`Space`、`ClearTheme`、`Clear.colors/type` |
 | `motion` | 按压缩小 + 弹回（`PressIndication`）、橡皮筋回弹、液态玻璃 `liquidGlass`、`ClearSprings` |
 | `icons` | `ClearIcons`：和设计稿同一套线条图标 |
-| `components` | 卡片拼接（`CardRow`、`SectionLabel`、`CloseCard`…）、各种行（`ListRow`、`NavRow`、`SwitchRow`、`PickerRow`、`ValueRow`）、`ClearSwitch`、`Badge`、`HueTile`、`Notice`、`PillButton`、`BottomActions`、`Segmented`、`FilterPill(s)`、`ClearChip`、`ClearTextField`、`ClearSheet`、加载 / 空 / 出错 |
+| `components` | 卡片拼接（`CardRow`、`SectionLabel`、`CloseCard`…）、各种行（`ListRow`、`NavRow`、`SwitchRow`、`PickerRow`、`ValueRow`）、`ClearSwitch`、`Badge`、`HueTile`、`Notice`、`PillButton`、`BottomActions`、`Segmented`、`FilterPill(s)`、`ClearChip`、`ClearTextField`、`ClearSheet`、加载 / 空 / 出错；入口页用的 `IconTile`（`NavRow` / `SwitchRow` 的 `icon`）、`EntryCard`、`CountChip`；首页用的 `BlockHeading`、`HeroCard` / `HeroNumber` / `HeroChips`、`TileGrid` + `ToggleTile`、`QuickGrid`、`UndoRow`；媒体用的 `ProgressCard`、`CoverCard` + `MasonryColumns`、`ThumbRow` + `ThumbBox` |
 | `shell` | `ClearShell`（四个页签 + 页面栈 + 玻璃底栏）、`PageHeader`、`PageFrame`、`Navigator`、`UnsavedGuard` |
 
 模块只管强调色、文字转换（`ClearTheme(textTransform = …)`，哔哩净界的简繁）和自己的页面。

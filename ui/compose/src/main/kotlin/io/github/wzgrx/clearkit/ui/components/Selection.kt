@@ -73,11 +73,11 @@ fun FilterPill(label: String, selected: Boolean, count: String? = null, onClick:
     }
 }
 
-/** 一排可横向滚动的筛选芯片。 */
+/** 一排可横向滚动的筛选芯片；[counts] 按位置给每个芯片的数字（“全部 6”“失败 1”）。 */
 @Composable
-fun FilterPills(items: List<String>, selected: Int, onSelect: (Int) -> Unit) {
+fun FilterPills(items: List<String>, selected: Int, counts: List<String?> = emptyList(), onSelect: (Int) -> Unit) {
     Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = PageGutter, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        items.forEachIndexed { i, s -> FilterPill(s, i == selected) { onSelect(i) } }
+        items.forEachIndexed { i, s -> FilterPill(s, i == selected, counts.getOrNull(i)) { onSelect(i) } }
     }
 }
 

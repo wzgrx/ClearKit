@@ -1,9 +1,0 @@
-io.github.wzgrx.clearkit.ui.clearkit-ui-pngs-0 /home/wzgrx/projects/clear-kit/ui/compose/build/generated/res/pngs/debug
-io.github.wzgrx.clearkit.ui.clearkit-ui-updated_navigation_xml-1 /home/wzgrx/projects/clear-kit/ui/compose/build/generated/updated_navigation_xml/debug
-io.github.wzgrx.clearkit.ui.clearkit-ui-mergeDebugResources-2 /home/wzgrx/projects/clear-kit/ui/compose/build/intermediates/incremental/debug/mergeDebugResources/merged.dir
-io.github.wzgrx.clearkit.ui.clearkit-ui-mergeDebugResources-3 /home/wzgrx/projects/clear-kit/ui/compose/build/intermediates/incremental/debug/mergeDebugResources/stripped.dir
-io.github.wzgrx.clearkit.ui.clearkit-ui-debug-4 /home/wzgrx/projects/clear-kit/ui/compose/build/intermediates/merged_res/debug/mergeDebugResources
-io.github.wzgrx.clearkit.ui.clearkit-ui-debug-5 /home/wzgrx/projects/clear-kit/ui/compose/build/intermediates/packaged_res/debug/packageDebugResources
-io.github.wzgrx.clearkit.ui.clearkit-ui-debug-6 /home/wzgrx/projects/clear-kit/ui/compose/src/debug/res
-io.github.wzgrx.clearkit.ui.clearkit-ui-main-7 /home/wzgrx/projects/clear-kit/ui/compose/src/main/res
-gradleHome-0 /home/wzgrx/.gradle-purelive-v4
