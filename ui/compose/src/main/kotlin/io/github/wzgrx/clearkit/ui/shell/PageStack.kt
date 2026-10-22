@@ -96,6 +96,12 @@ object PageMotion {
     /** 从静止开始的整步进出。 */
     val Step: AnimationSpec<Float> = tween(DURATION, easing = Easing)
 
+    /**
+     * 离终点不到这么多（页）就算到位：栈顶页从这时起是 RESUMED（页面按它决定响应点击的，比如防连点返回）。
+     * 物理曲线前 250ms 走完 92%，后面一半时间只是慢慢贴近终点，看不出还在动；等完全停住再响应，点了没反应像卡住。
+     */
+    const val SETTLED = 0.08f
+
     /** 中途改方向、手势松手：临界阻尼弹簧接着当前位置和速度走（单位是“页”，一整步约半秒停稳）。 */
     val Settle: AnimationSpec<Float> = spring(dampingRatio = 1f, stiffness = 146f, visibilityThreshold = 0.0025f)
 }
@@ -167,7 +173,7 @@ internal class PageStores : ViewModel() {
     }
 }
 
-/** 一页自己的生命周期（停稳的栈顶 RESUMED，其余留在组合里的 STARTED，不超过 Activity 的）和 ViewModel 存储。 */
+/** 一页自己的生命周期（到位的栈顶 RESUMED，见 [PageMotion.SETTLED]；其余留在组合里的 STARTED，不超过 Activity 的）和 ViewModel 存储。 */
 private class PageOwner(override val viewModelStore: ViewModelStore) : LifecycleOwner, ViewModelStoreOwner {
     val registry = LifecycleRegistry(this)
     override val lifecycle: Lifecycle get() = registry
@@ -339,10 +345,10 @@ private fun PageHost(
     content: @Composable () -> Unit,
 ) {
     val owner = remember { PageOwner(stores.of(key)) }
-    // 停稳的栈顶 RESUMED，其余 STARTED；不超过 Activity 自己的状态
+    // 到位的栈顶 RESUMED（离终点不到 PageMotion.SETTLED），其余 STARTED；不超过 Activity 自己的状态
     LaunchedEffect(owner) {
         snapshotFlow {
-            val settledTop = !gesture() && top.value == target.value && index.toFloat() == target.value
+            val settledTop = !gesture() && index.toFloat() == target.value && abs(top.value - target.value) < PageMotion.SETTLED
             minOf(parentState.value, if (settledTop) Lifecycle.State.RESUMED else Lifecycle.State.STARTED)
         }.collect { owner.registry.currentState = it }
     }
