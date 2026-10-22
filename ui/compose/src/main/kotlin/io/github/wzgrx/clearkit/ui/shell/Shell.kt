@@ -111,9 +111,9 @@ fun ClearShell(
                 onBack = { nav.back() },
                 originOf = nav::originOf,
                 reduceMotion = reduceMotion,
-                base = if (single) null else { visible ->
+                base = if (single) null else { placed ->
                     CompositionLocalProvider(LocalTabReturns provides returns) {
-                        TabBase(tabs, current, visible, TabBarSize.space + navBar, navBar, onSelect = { current = it }) { t ->
+                        TabBase(tabs, current, placed, TabBarSize.space + navBar, navBar, onSelect = { current = it }) { t ->
                             saved.SaveableStateProvider("tab:${t.key}") { tab(t) }
                         }
                     }
@@ -127,20 +127,21 @@ fun ClearShell(
 /**
  * 页签那一层（页面栈的最底层）：当前页签和它上面浮着的液态玻璃底栏，压上二级页时一起左移、压暗。
  * 访问过的页签都留在组合里，不是当前的不摆放（不画、不接触摸）；切页签只是换一个摆放，不重新组合。
- * 玻璃底栏要取页签内容做背景：这一层不在屏幕上（被二级页盖住停稳了）时不取。
+ * 玻璃底栏要取页签内容做背景：这一层摆着就取（被二级页盖住停着时透明度 0 不画，返回时不用重新开始取）；
+ * 再往下压一层、这一层不摆放了才停。
  */
 @Composable
 private fun TabBase(
     tabs: List<ShellTab>,
     current: Int,
-    visible: State<Boolean>,
+    placed: State<Boolean>,
     inset: Dp,
     navBar: Dp,
     onSelect: (Int) -> Unit,
     tab: @Composable (ShellTab) -> Unit,
 ) {
     val backdrop = rememberLayerBackdrop()
-    val capture = Clear.glass && Glass.supported && visible.value
+    val capture = Clear.glass && Glass.supported && placed.value
     val visited = remember { mutableStateListOf(current) }
     if (current !in visited) visited += current
     Box(Modifier.fillMaxSize()) {

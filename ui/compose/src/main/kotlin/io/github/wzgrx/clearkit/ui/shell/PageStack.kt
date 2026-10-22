@@ -42,6 +42,7 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
@@ -199,7 +200,7 @@ fun PageStack(
     modifier: Modifier = Modifier,
     originOf: (String) -> Rect? = { null },
     reduceMotion: Boolean = Clear.reduceMotion,
-    base: (@Composable (visible: State<Boolean>) -> Unit)? = null,
+    base: (@Composable (placed: State<Boolean>) -> Unit)? = null,
     page: @Composable (String) -> Unit,
 ) {
     val c = Clear.colors
@@ -283,16 +284,16 @@ fun PageStack(
     Box(modifier.fillMaxSize().onGloballyPositioned { at.value = it.positionInRoot(); width.intValue = it.size.width }) {
         if (base != null) {
             key("base") {
-                val visible = rememberLayerVisible(0, top, targetState) { gesture }
-                PageHost(0, "base", null, 1 in fromCard, visible, top, targetState, { gesture }, corner, at, c.ground, stores, parentState) { base(visible) }
+                val (placed, shown) = rememberLayerState(0, top, targetState) { gesture }
+                PageHost(0, "base", null, 1 in fromCard, placed, shown, top, targetState, { gesture }, corner, at, c.ground, stores, parentState) { base(placed) }
             }
         }
         entries.forEach { entry ->
             // 离栈顶太远的页放掉组合，状态留在 saved 里
             if (entry.index >= target - KEEP || entry.leaving) {
                 key(entry.key) {
-                    val visible = rememberLayerVisible(entry.index, top, targetState) { gesture }
-                    PageHost(entry.index, entry.key, entry.origin, (entry.index + 1) in fromCard, visible, top, targetState, { gesture }, corner, at, c.ground, stores, parentState) {
+                    val (placed, shown) = rememberLayerState(entry.index, top, targetState) { gesture }
+                    PageHost(entry.index, entry.key, entry.origin, (entry.index + 1) in fromCard, placed, shown, top, targetState, { gesture }, corner, at, c.ground, stores, parentState) {
                         CompositionLocalProvider(LocalPageRoute provides entry.route, LocalPageDepth provides entry.index) {
                             saved.SaveableStateProvider(entry.key) { page(entry.route) }
                         }
@@ -307,17 +308,21 @@ fun PageStack(
 private const val KEEP = 4
 
 /**
- * 这一层要不要摆放：在屏幕上（栈顶位置离它不到一格）、或者马上要露出来（正在拖返回、刚开始退出）。
- * derivedStateOf：位置每帧都算，只有跨过边界时才让这一层重新摆放。
+ * 这一层的两个状态（derivedStateOf：位置每帧都算，只有跨过边界时才通知）：
+ * - placed：要不要摆放。离栈顶不到一格的都摆放，包括正好被栈顶盖住的那一页——它停着时透明度是 0（系统直接跳过不画），
+ *   但排版和绘制记录都留着：返回时只要把透明度改回来，不用重新摆放、排版、录绘制（以前这一帧主线程 9–17ms）。
+ *   再往下的页不摆放。
+ * - shown：要不要画出来。在屏幕上、或者马上要露出来（正在拖返回、刚开始退出）。
  */
 @Composable
-private fun rememberLayerVisible(index: Int, top: Animatable<Float, *>, target: State<Float>, gesture: () -> Boolean): State<Boolean> {
+private fun rememberLayerState(index: Int, top: Animatable<Float, *>, target: State<Float>, gesture: () -> Boolean): Pair<State<Boolean>, State<Boolean>> {
     val idx by rememberUpdatedState(index)
     return remember {
-        derivedStateOf {
-            val d = top.value - idx
-            (d >= -1f && d < 0.999f) || (d <= 1f && (gesture() || abs(top.value - target.value) > 0.001f))
-        }
+        derivedStateOf { (top.value - idx).let { it >= -1f && it <= 1.0005f } } to
+            derivedStateOf {
+                val d = top.value - idx
+                (d >= -1f && d < 0.999f) || (d <= 1.0005f && (gesture() || abs(top.value - target.value) > 0.001f))
+            }
     }
 }
 
@@ -325,7 +330,7 @@ private fun rememberLayerVisible(index: Int, top: Animatable<Float, *>, target: 
  * 一层：自己的生命周期和 ViewModel 存储；自己画底色（转场时不透明）。
  * - 普通的页：按栈顶位置整页平移；被盖住时左移 1/4、盖遮罩；在最上面并且在动时按屏幕圆角裁剪。
  * - 从卡片打开的页（[origin]）：从卡片的位置和大小展开到整屏（按宽度等比缩放，裁成圆角矩形），下层不平移、只盖遮罩。
- * 不摆放的层不画、不接触摸，组合还在。
+ * 被盖住停着的那一页摆着但透明度 0（不画，无障碍服务也看不到），再往下的不摆放；组合都还在。
  */
 @Composable
 private fun PageHost(
@@ -333,7 +338,8 @@ private fun PageHost(
     key: String,
     origin: Rect?,
     coveredByCard: Boolean,
-    visible: State<Boolean>,
+    placed: State<Boolean>,
+    shown: State<Boolean>,
     top: Animatable<Float, *>,
     target: State<Float>,
     gesture: () -> Boolean,
@@ -358,8 +364,10 @@ private fun PageHost(
         Modifier.fillMaxSize().layout { measurable, constraints ->
             val p = measurable.measure(constraints)
             layout(p.width, p.height) {
-                if (visible.value) {
+                if (placed.value) {
                     p.placeWithLayer(0, 0) {
+                        // 被盖住停着的那一页：透明度 0，系统跳过不画、也不报给无障碍服务
+                        val hidden = !shown.value
                         val d = top.value - index
                         val w = p.width.toFloat()
                         val h = p.height.toFloat()
@@ -381,7 +389,7 @@ private fun PageHost(
                                 shape = RectShape(clipH, r)
                                 clip = true
                                 // 小的时候和卡片长得不一样（顶上是页头）：展开开头、缩回结尾那 1/4 跟着大小淡入淡出，融进卡片
-                                alpha = (q / 0.25f).coerceIn(0f, 1f)
+                                alpha = if (hidden) 0f else (q / 0.25f).coerceIn(0f, 1f)
                             } else {
                                 // 进来、退出：整页平移（取整到像素，圆角边缘移动时不闪）
                                 transformOrigin = TransformOrigin.Center
@@ -389,19 +397,22 @@ private fun PageHost(
                                 scaleY = 1f
                                 translationY = 0f
                                 translationX = ((-d).coerceIn(0f, 1f) * w).roundToInt().toFloat()
-                                alpha = 1f
+                                alpha = if (hidden) 0f else 1f
                                 shape = slide
                                 clip = moving && corner > 0f
                             }
                         } else {
                             // 被盖住：上面那页从卡片展开时不平移，只压暗
                             translationX = if (coveredByCard) 0f else -PageMotion.PARALLAX * d.coerceIn(0f, 1f) * w
+                            alpha = if (hidden) 0f else 1f
                             clip = false
                         }
                     }
                 }
             }
-        },
+        }
+            // 每层都占住触摸：落在上面一页空白处的点按不会穿到下面（被盖住的页还摆着）
+            .pointerInput(Unit) {},
     ) {
         CompositionLocalProvider(LocalLifecycleOwner provides owner, LocalViewModelStoreOwner provides owner) {
             Box(Modifier.fillMaxSize().background(ground)) { content() }
