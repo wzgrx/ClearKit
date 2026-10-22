@@ -88,6 +88,9 @@ val LocalPageRoute = staticCompositionLocalOf<String?> { null }
 /** 这一页在栈里的位置：页签那一层是 0，压上去的第一页是 1（单页入口的栈底也是 1）。 */
 val LocalPageDepth = staticCompositionLocalOf { 0 }
 
+/** 页面栈已经给这一页画了整屏底色：页面骨架（[PageFrame]）不用再画一遍（多填一整屏，GPU 每帧白做）。 */
+val LocalPageGroundDrawn = staticCompositionLocalOf { false }
+
 /**
  * 未保存修改：页面有没保存的改动时，返回（页头箭头、系统返回）先问“放弃修改？”。[dirty] 为 false 时直接返回。
  */

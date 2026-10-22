@@ -1,7 +1,6 @@
 package io.github.wzgrx.clearkit.ui.components
 
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
@@ -29,8 +28,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
@@ -159,17 +160,22 @@ fun SwitchRow(
 /**
  * 开关（规范 v1）：44 × 26 的胶囊轨道，开 = 强调色，关 = 浅灰；白色圆钮带一点阴影，用弹簧滑过去。
  * 只显示，点击交给整行（[SwitchRow]）。
+ * 一个进度同时管圆钮位置和轨道颜色，只在摆放、绘制时读：一页几十个开关少一半动画，拨动时也不重新组合。
  */
 @Composable
 fun ClearSwitch(checked: Boolean, enabled: Boolean = true) {
     val c = Clear.colors
-    val motion = if (Clear.reduceMotion) snap<Dp>() else spring(dampingRatio = 0.7f, stiffness = 700f)
-    val x by animateDpAsState(if (checked) 21.dp else 3.dp, motion, label = "knob")
-    val track by animateColorAsState(if (checked) c.accent else c.switchOff, label = "track")
+    val motion = if (Clear.reduceMotion) snap<Float>() else spring(dampingRatio = 0.7f, stiffness = 700f)
+    val p by animateFloatAsState(if (checked) 1f else 0f, motion, label = "switch")
     val alpha = if (enabled) 1f else 0.38f
-    Box(Modifier.size(44.dp, 26.dp).clip(CircleShape).background(track.copy(alpha = alpha)), contentAlignment = Alignment.CenterStart) {
+    val off = c.switchOff
+    val on = c.accent
+    Box(
+        Modifier.size(44.dp, 26.dp).clip(CircleShape).drawBehind { drawRect(lerp(off, on, p.coerceIn(0f, 1f)).copy(alpha = alpha)) },
+        contentAlignment = Alignment.CenterStart,
+    ) {
         Box(
-            Modifier.offset { IntOffset(x.roundToPx(), 0) }.size(20.dp).shadow(2.dp, CircleShape).clip(CircleShape)
+            Modifier.offset { IntOffset((3.dp + 18.dp * p).roundToPx(), 0) }.size(20.dp).shadow(2.dp, CircleShape).clip(CircleShape)
                 .background(Color.White.copy(alpha = if (enabled) 1f else 0.8f)),
         )
     }

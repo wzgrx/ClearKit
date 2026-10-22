@@ -1,5 +1,7 @@
 package io.github.wzgrx.clearkit.ui.shell
 
+import android.app.Activity
+import android.content.ContextWrapper
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -34,9 +36,11 @@ import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.layout
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -96,14 +100,15 @@ fun ClearShell(
     BackHandler(enabled = stack.isEmpty() && current != 0) { current = 0 }
     BackHandler(enabled = guarded || (single && stack.size <= root)) { nav.back() }
     LaunchedEffect(Unit) { if (!single) onStart(nav) }
-    val c = Clear.colors
     val reduceMotion = Clear.reduceMotion
     val navBar = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     // 从二级页回到页签的次数（见 rememberTabReturns）
     val returns = remember { mutableIntStateOf(0) }
     LaunchedEffect(Unit) { snapshotFlow { stack.isEmpty() }.drop(1).collect { if (it) returns.intValue++ } }
+    DropWindowBackground()
     CompositionLocalProvider(LocalNavigator provides nav) {
-        Box(Modifier.fillMaxSize().background(c.ground)) {
+        // 不再铺整屏底色：页面栈的每一页自己画不透明底色，把整屏盖满（多铺一层，GPU 每帧多填一整屏）
+        Box(Modifier.fillMaxSize()) {
             PageStack(
                 stack = stack,
                 saved = saved,
@@ -111,9 +116,9 @@ fun ClearShell(
                 onBack = { nav.back() },
                 originOf = nav::originOf,
                 reduceMotion = reduceMotion,
-                base = if (single) null else { placed ->
+                base = if (single) null else { shown ->
                     CompositionLocalProvider(LocalTabReturns provides returns) {
-                        TabBase(tabs, current, placed, TabBarSize.space + navBar, navBar, onSelect = { current = it }) { t ->
+                        TabBase(tabs, current, shown, TabBarSize.space + navBar, navBar, onSelect = { current = it }) { t ->
                             saved.SaveableStateProvider("tab:${t.key}") { tab(t) }
                         }
                     }
@@ -125,23 +130,40 @@ fun ClearShell(
 }
 
 /**
+ * 外壳和页面栈把整屏底色都画了：窗口自己的背景（主题里的 windowBackground）每帧还会再填一遍整屏，被完全盖住、
+ * 白白多花 GPU（K90 打开“显示过度绘制”时空白处也是 4 层以上）。第一帧画完以后把它去掉；
+ * 启动时的预览窗口和第一帧之前仍用主题背景，不会闪。自己写外壳、但整屏都铺满了页面的模块也可以调用。
+ */
+@Composable
+fun DropWindowBackground() {
+    val view = LocalView.current
+    LaunchedEffect(view) {
+        withFrameNanos { }
+        withFrameNanos { }
+        var ctx = view.context
+        while (ctx is ContextWrapper && ctx !is Activity) ctx = ctx.baseContext
+        (ctx as? Activity)?.window?.setBackgroundDrawable(null)
+    }
+}
+
+/**
  * 页签那一层（页面栈的最底层）：当前页签和它上面浮着的液态玻璃底栏，压上二级页时一起左移、压暗。
  * 访问过的页签都留在组合里，不是当前的不摆放（不画、不接触摸）；切页签只是换一个摆放，不重新组合。
- * 玻璃底栏要取页签内容做背景：这一层摆着就取（被二级页盖住停着时透明度 0 不画，返回时不用重新开始取）；
- * 再往下压一层、这一层不摆放了才停。
+ * 玻璃底栏要取页签内容做背景：这一层画出来时才取。被二级页盖住停着时（透明度 0）不取——系统虽不画这一层的内容，
+ * 模糊用的图层还会照样更新（K90 追踪：子页滑动时一半的帧在画它）；开始返回、这一层要露出来时再取。
  */
 @Composable
 private fun TabBase(
     tabs: List<ShellTab>,
     current: Int,
-    placed: State<Boolean>,
+    shown: State<Boolean>,
     inset: Dp,
     navBar: Dp,
     onSelect: (Int) -> Unit,
     tab: @Composable (ShellTab) -> Unit,
 ) {
     val backdrop = rememberLayerBackdrop()
-    val capture = Clear.glass && Glass.supported && placed.value
+    val capture = Clear.glass && Glass.supported && shown.value
     val visited = remember { mutableStateListOf(current) }
     if (current !in visited) visited += current
     Box(Modifier.fillMaxSize()) {
@@ -216,7 +238,8 @@ fun PageFrame(
 ) {
     val backAction: (() -> Unit)? = if (!back) null else onBack ?: LocalNavigator.current.let { nav -> { nav.back() } }
     val tabInset: Dp = bottomInset ?: if (back) 0.dp else LocalTabBarInset.current
-    Column(Modifier.fillMaxSize().background(Clear.colors.ground)) {
+    // 在页面栈里时底色已经由页面栈画了，不再叠一层整屏底色
+    Column(Modifier.fillMaxSize().then(if (LocalPageGroundDrawn.current) Modifier else Modifier.background(Clear.colors.ground))) {
         PageHeader(title, subtitle, onBack = backAction, statusBar = statusBar, actions = actions)
         top?.invoke()
         CompositionLocalProvider(

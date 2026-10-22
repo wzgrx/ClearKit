@@ -200,7 +200,7 @@ fun PageStack(
     modifier: Modifier = Modifier,
     originOf: (String) -> Rect? = { null },
     reduceMotion: Boolean = Clear.reduceMotion,
-    base: (@Composable (placed: State<Boolean>) -> Unit)? = null,
+    base: (@Composable (shown: State<Boolean>) -> Unit)? = null,
     page: @Composable (String) -> Unit,
 ) {
     val c = Clear.colors
@@ -285,7 +285,7 @@ fun PageStack(
         if (base != null) {
             key("base") {
                 val (placed, shown) = rememberLayerState(0, top, targetState) { gesture }
-                PageHost(0, "base", null, 1 in fromCard, placed, shown, top, targetState, { gesture }, corner, at, c.ground, stores, parentState) { base(placed) }
+                PageHost(0, "base", null, 1 in fromCard, placed, shown, top, targetState, { gesture }, corner, at, c.ground, stores, parentState) { base(shown) }
             }
         }
         entries.forEach { entry ->
@@ -414,7 +414,7 @@ private fun PageHost(
             // 每层都占住触摸：落在上面一页空白处的点按不会穿到下面（被盖住的页还摆着）
             .pointerInput(Unit) {},
     ) {
-        CompositionLocalProvider(LocalLifecycleOwner provides owner, LocalViewModelStoreOwner provides owner) {
+        CompositionLocalProvider(LocalLifecycleOwner provides owner, LocalViewModelStoreOwner provides owner, LocalPageGroundDrawn provides true) {
             Box(Modifier.fillMaxSize().background(ground)) { content() }
         }
         // 被盖住时的遮罩：只改图层透明度，停在栈顶时是 0（不画）
