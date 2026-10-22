@@ -9,6 +9,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.geometry.Rect
 import io.github.wzgrx.clearkit.ui.components.Text
 
 /** 页面间跳转：[open] 压一页，[back] 退一页（栈底时退出单页入口）。 */
@@ -20,15 +21,37 @@ class Navigator(
 ) {
     val top: String? get() = stack.lastOrNull()
     val depth: Int get() = stack.size
-    fun open(route: String) { guard = null; stack += route }
+
+    /** 从卡片打开的页：卡片在屏幕上的位置（根布局坐标、像素），转场从那里展开、返回时缩回去。 */
+    private val origins = HashMap<String, Rect>()
+
+    /** 压一页；[origin] 是点的那张卡片的位置（见 [Modifier.cardOrigin]），给了就从卡片展开，不给就从右边滑进来。 */
+    fun open(route: String, origin: Rect? = null) {
+        guard = null
+        val key = pageKey(stack.size + 1, route)
+        if (origin != null) origins[key] = origin else origins.remove(key)
+        stack += route
+    }
+
+    /** [key] 这一页是从哪张卡片打开的（给 [PageStack] 的 originOf）。 */
+    fun originOf(key: String): Rect? = origins[key]
+
+    /** 退回栈底（页签页）：压着的页一起退出。 */
+    fun clear() {
+        guard = null
+        while (stack.isNotEmpty()) {
+            drop(pageKey(stack.size, stack.last()))
+            stack.removeAt(stack.lastIndex)
+        }
+    }
 
     /** 换掉当前页（不留在返回栈里）。 */
     fun replace(route: String) {
-        if (stack.isEmpty()) stack += route else { onDrop(pageKey(stack.size, stack.last())); stack[stack.lastIndex] = route }
+        if (stack.isEmpty()) stack += route else { drop(pageKey(stack.size, stack.last())); stack[stack.lastIndex] = route }
     }
 
-    /** 当前页的离开确认：返回 false 表示先不走（页面自己弹确认）。 */
-    var guard: (() -> Boolean)? = null
+    /** 当前页的离开确认：返回 false 表示先不走（页面自己弹确认）。有确认时系统返回手势不跟手（外壳读它）。 */
+    var guard: (() -> Boolean)? by mutableStateOf(null)
 
     fun back() {
         if (guard?.invoke() == false) return
@@ -40,9 +63,14 @@ class Navigator(
         guard = null
         // 单页入口：退到入口页再返回就结束，回到宿主
         if (onExit != null && stack.size <= 1) onExit.invoke() else if (stack.isNotEmpty()) {
-            onDrop(pageKey(stack.size, stack.last()))
+            drop(pageKey(stack.size, stack.last()))
             stack.removeAt(stack.lastIndex)
         }
+    }
+
+    private fun drop(key: String) {
+        onDrop(key)
+        // 来源位置留到退出动画画完（缩回卡片要用），下次同一位置压新页时覆盖
     }
 }
 
@@ -56,6 +84,9 @@ val LocalNavigator = staticCompositionLocalOf<Navigator> { error("no navigator")
  * 压上二级页以后 top 是那一页的路由。
  */
 val LocalPageRoute = staticCompositionLocalOf<String?> { null }
+
+/** 这一页在栈里的位置：页签那一层是 0，压上去的第一页是 1（单页入口的栈底也是 1）。 */
+val LocalPageDepth = staticCompositionLocalOf { 0 }
 
 /**
  * 未保存修改：页面有没保存的改动时，返回（页头箭头、系统返回）先问“放弃修改？”。[dirty] 为 false 时直接返回。

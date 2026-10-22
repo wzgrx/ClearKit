@@ -39,6 +39,9 @@ dependencies {
     api(libs.androidx.compose.foundation)
     api(libs.androidx.compose.material3)
     api(libs.androidx.activity.compose)
+    // 页面栈给每页自己的生命周期和 ViewModel 存储（同 Jetpack Navigation 的每个目的地）
+    api(libs.androidx.lifecycle.runtime.compose)
+    api(libs.androidx.lifecycle.viewmodel.compose)
     // 液态玻璃（底栏、浮层）和它要的圆角形状
     api(libs.backdrop)
     api(libs.kyant.shapes)

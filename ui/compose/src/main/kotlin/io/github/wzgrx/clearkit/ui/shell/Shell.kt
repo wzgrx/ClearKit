@@ -1,18 +1,6 @@
 package io.github.wzgrx.clearkit.ui.shell
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.EnterTransition
-import androidx.compose.animation.ExitTransition
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.FastOutLinearInEasing
-import androidx.compose.animation.core.LinearOutSlowInEasing
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.snap
-import androidx.compose.animation.core.spring
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.core.updateTransition
-import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -35,11 +23,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
@@ -60,7 +49,6 @@ import io.github.wzgrx.clearkit.ui.components.LocalCardFlow
 import io.github.wzgrx.clearkit.ui.components.LocalHideSectionLabels
 import io.github.wzgrx.clearkit.ui.components.Text
 import io.github.wzgrx.clearkit.ui.icons.ClearIcons
-import io.github.wzgrx.clearkit.ui.motion.ClearMotion
 import io.github.wzgrx.clearkit.ui.motion.Glass
 import io.github.wzgrx.clearkit.ui.motion.LocalGlassBackdrop
 import io.github.wzgrx.clearkit.ui.theme.Clear
@@ -79,20 +67,13 @@ private val LocalTabReturns = staticCompositionLocalOf<State<Int>> { mutableIntS
 @Composable
 fun rememberTabReturns(): Int = LocalTabReturns.current.value
 
-/** 压在页签页上面的那一屏：[route] 为空表示没有二级页。 */
-private data class Layer(val route: String?, val depth: Int)
-
-/** 页签页被盖住、露出来时的横移（占宽度的比例）：和二级页转场同一组弹簧，停稳的门槛约 1 像素。 */
-private val CoverSpring = spring(ClearMotion.PushSpring.dampingRatio, ClearMotion.PushSpring.stiffness, visibilityThreshold = 0.0005f)
-private val UncoverSpring = spring(ClearMotion.PopSpring.dampingRatio, ClearMotion.PopSpring.stiffness, visibilityThreshold = 0.0005f)
-
 /**
  * App 外壳（规范 v1 “框架”）：底部四个页签（首页 · 功能 · 特色页 · 我的），二级页压在上面。
- * 页签页上浮一条液态玻璃底栏，内容从它下面滚过去；进二级页时底栏往下滑走，回来时滑上来。
- * 转场见 [ClearMotion]：二级页从右边推进来（旧页先淡出、新页再淡入，不重影），返回反向；页签之间 fade-through。
+ * 页签页上浮一条液态玻璃底栏，内容从它下面滚过去。转场照 HyperOS 系统的 Activity 转场（见 [PageStack]、[PageMotion]）：
+ * 二级页从右边整页滑进来，下面一层（连同底栏）左移 1/4 并压暗；返回反过来，系统返回手势跟手。
+ * 页签之间直接切换（和系统应用一样）；访问过的页签留在组合里，切回来不重新组合。
  * [entry] 是从宿主、通知打开的页：是页签就停在那个页签，不是就只显示那一页，返回即 [onExit]。
- * 每页的滚动位置、展开的分组用状态容器记住，返回时原样恢复。
- * 页签页一直留在组合里（见 [TabLayer]）：返回页签时不用整页重新组合；页面要知道自己是哪页用 [LocalPageRoute]。
+ * 每页的滚动位置、展开的分组都在（页留在组合里；放掉组合的也由状态容器记住）。页面要知道自己是哪页用 [LocalPageRoute]。
  */
 @Composable
 fun ClearShell(
@@ -109,122 +90,77 @@ fun ClearShell(
     val saved = rememberSaveableStateHolder()
     val nav = remember { Navigator(stack, if (single) onExit else null, saved::removeState) }
     var current by rememberSaveable { mutableIntStateOf(tabOf(entry) ?: 0) }
-    BackHandler(enabled = stack.isNotEmpty() || current != 0) {
-        if (stack.isNotEmpty()) nav.back() else current = 0
-    }
+    // 返回：栈里有页时由页面栈处理（预测式返回跟手）；页面有离开确认时先问；单页入口在栈底时退出；页签页不在第一个时回第一个
+    val guarded = nav.guard != null
+    val root = if (single) 1 else 0
+    BackHandler(enabled = stack.isEmpty() && current != 0) { current = 0 }
+    BackHandler(enabled = guarded || (single && stack.size <= root)) { nav.back() }
     LaunchedEffect(Unit) { if (!single) onStart(nav) }
     val c = Clear.colors
     val reduceMotion = Clear.reduceMotion
     val navBar = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-    // 底栏的显隐：弹簧，只在绘制层里读（页面不用重新测量）
-    val barVisible = stack.isEmpty() && !single
-    val barProgress = remember { Animatable(if (barVisible) 1f else 0f) }
-    LaunchedEffect(barVisible, reduceMotion) {
-        val target = if (barVisible) 1f else 0f
-        if (reduceMotion) barProgress.snapTo(target) else barProgress.animateTo(target, if (barVisible) ClearMotion.BarShow else ClearMotion.BarHide)
-    }
-    val barShown by remember { derivedStateOf { barProgress.value > 0f } }
-    // 液态玻璃要取页面内容：只在底栏露出来时取（二级页上不多画一遍）
-    val backdrop = rememberLayerBackdrop()
-    val capture = Clear.glass && Glass.supported && (barVisible || barShown)
     // 从二级页回到页签的次数（见 rememberTabReturns）
     val returns = remember { mutableIntStateOf(0) }
     LaunchedEffect(Unit) { snapshotFlow { stack.isEmpty() }.drop(1).collect { if (it) returns.intValue++ } }
     CompositionLocalProvider(LocalNavigator provides nav) {
         Box(Modifier.fillMaxSize().background(c.ground)) {
-            Box(Modifier.fillMaxSize().then(if (capture) Modifier.layerBackdrop(backdrop) else Modifier)) {
-                if (!single) {
+            PageStack(
+                stack = stack,
+                saved = saved,
+                gestureEnabled = !guarded && stack.size > root,
+                onBack = { nav.back() },
+                originOf = nav::originOf,
+                reduceMotion = reduceMotion,
+                base = if (single) null else { visible ->
                     CompositionLocalProvider(LocalTabReturns provides returns) {
-                        TabLayer(tabs, current, covered = stack.isNotEmpty(), reduceMotion, TabBarSize.space + navBar) { t ->
+                        TabBase(tabs, current, visible, TabBarSize.space + navBar, navBar, onSelect = { current = it }) { t ->
                             saved.SaveableStateProvider("tab:${t.key}") { tab(t) }
                         }
                     }
-                }
-                AnimatedContent(
-                    targetState = Layer(stack.lastOrNull(), stack.size),
-                    transitionSpec = {
-                        when {
-                            reduceMotion -> EnterTransition.None togetherWith ExitTransition.None
-                            // 从页签进来、回到页签：页签页那一边由 TabLayer 自己动
-                            targetState.depth >= initialState.depth ->
-                                ClearMotion.pushEnter() togetherWith if (initialState.route == null) ExitTransition.None else ClearMotion.pushExit()
-                            else -> (if (targetState.route == null) EnterTransition.None else ClearMotion.popEnter()) togetherWith ClearMotion.popExit()
-                        }
-                    },
-                    contentKey = { if (it.route == null) "none" else pageKey(it.depth, it.route) },
-                    label = "page",
-                ) { layer ->
-                    if (layer.route == null) {
-                        // 没有二级页：这一层是空的（不画、不接触摸），下面的页签页照常可点
-                        Box(Modifier.fillMaxSize())
-                    } else {
-                        // 每一页画自己的底色：转场时两页不会透明叠在一起
-                        Box(Modifier.fillMaxSize().background(c.ground)) {
-                            CompositionLocalProvider(LocalPageRoute provides layer.route) {
-                                saved.SaveableStateProvider(pageKey(layer.depth, layer.route)) { page(layer.route) }
-                            }
-                        }
-                    }
-                }
-            }
-            if (barVisible || barShown) {
-                CompositionLocalProvider(LocalGlassBackdrop provides if (capture) backdrop else null) {
-                    GlassTabBar(tabs, current, bottom = navBar, modifier = Modifier.align(Alignment.BottomCenter), progress = { barProgress.value }) { current = it }
-                }
-            }
+                },
+                page = page,
+            )
         }
     }
 }
 
 /**
- * 页签页那一层，一直留在组合里：页签之间 fade-through；压上二级页（[covered]）时像旧页一样左移 1/10、很快淡出，
- * 停稳后不再摆放（不画、也不接触摸，组合和滚动位置都还在）；返回时从左边滑回来、稍后淡入（同 [ClearMotion.popEnter]）。
- * 以前页签页跟着二级页一起进出 AnimatedContent，返回时整页要在转场第一帧里重新组合、测量、绘制（K90 上哔哩净界功能页 13–18ms，
- * 是转场里唯一显示晚了的帧）。
+ * 页签那一层（页面栈的最底层）：当前页签和它上面浮着的液态玻璃底栏，压上二级页时一起左移、压暗。
+ * 访问过的页签都留在组合里，不是当前的不摆放（不画、不接触摸）；切页签只是换一个摆放，不重新组合。
+ * 玻璃底栏要取页签内容做背景：这一层不在屏幕上（被二级页盖住停稳了）时不取。
  */
 @Composable
-private fun TabLayer(tabs: List<ShellTab>, current: Int, covered: Boolean, reduceMotion: Boolean, inset: Dp, tab: @Composable (ShellTab) -> Unit) {
-    val c = Clear.colors
-    val cover = updateTransition(covered, label = "tabCover")
-    val shift = cover.animateFloat(
-        transitionSpec = { if (reduceMotion) snap() else if (targetState) CoverSpring else UncoverSpring },
-        label = "shift",
-    ) { if (it) -0.1f else 0f }
-    val alpha = cover.animateFloat(
-        transitionSpec = {
-            when {
-                reduceMotion -> snap()
-                targetState -> tween(ClearMotion.FADE_OUT, easing = FastOutLinearInEasing)
-                else -> tween(ClearMotion.POP - ClearMotion.FADE_OUT, delayMillis = ClearMotion.FADE_OUT, easing = LinearOutSlowInEasing)
-            }
-        },
-        label = "alpha",
-    ) { if (it) 0f else 1f }
-    Box(
-        Modifier.fillMaxSize().layout { measurable, constraints ->
-            val p = measurable.measure(constraints)
-            layout(p.width, p.height) {
-                // 盖住并且停稳了就不摆放；动画只改图层属性，不重新组合、不重新测量
-                if (!(cover.currentState && cover.targetState)) {
-                    p.placeWithLayer(0, 0) {
-                        translationX = shift.value * p.width
-                        // 露出来时从 1% 起淡入（见 ClearMotion.ENTER_ALPHA）
-                        this.alpha = if (cover.targetState) alpha.value else alpha.value.coerceAtLeast(ClearMotion.ENTER_ALPHA)
+private fun TabBase(
+    tabs: List<ShellTab>,
+    current: Int,
+    visible: State<Boolean>,
+    inset: Dp,
+    navBar: Dp,
+    onSelect: (Int) -> Unit,
+    tab: @Composable (ShellTab) -> Unit,
+) {
+    val backdrop = rememberLayerBackdrop()
+    val capture = Clear.glass && Glass.supported && visible.value
+    val visited = remember { mutableStateListOf(current) }
+    if (current !in visited) visited += current
+    Box(Modifier.fillMaxSize()) {
+        Box(Modifier.fillMaxSize().then(if (capture) Modifier.layerBackdrop(backdrop) else Modifier)) {
+            visited.forEach { i ->
+                key(i) {
+                    val shown by rememberUpdatedState(i == current)
+                    Box(
+                        Modifier.fillMaxSize().layout { measurable, constraints ->
+                            val p = measurable.measure(constraints)
+                            layout(p.width, p.height) { if (shown) p.place(0, 0) }
+                        },
+                    ) {
+                        CompositionLocalProvider(LocalTabBarInset provides inset) { tab(tabs[i.coerceIn(0, tabs.lastIndex)]) }
                     }
                 }
             }
-        },
-    ) {
-        AnimatedContent(
-            targetState = current,
-            transitionSpec = { if (reduceMotion) EnterTransition.None togetherWith ExitTransition.None else ClearMotion.tabIn() togetherWith ClearMotion.tabOut() },
-            contentKey = { "tab:$it" },
-            label = "tab",
-        ) { i ->
-            val t = tabs[i.coerceIn(0, tabs.lastIndex)]
-            Box(Modifier.fillMaxSize().background(c.ground)) {
-                CompositionLocalProvider(LocalTabBarInset provides inset) { tab(t) }
-            }
+        }
+        CompositionLocalProvider(LocalGlassBackdrop provides if (capture) backdrop else null) {
+            GlassTabBar(tabs, current, bottom = navBar, modifier = Modifier.align(Alignment.BottomCenter)) { onSelect(it) }
         }
     }
 }
