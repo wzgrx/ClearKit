@@ -89,3 +89,19 @@ object ViewType {
     const val CAPTION = 12f
     const val SMALL = 11f
 }
+
+/** 场景色（规范 v1，和 Compose 端的 ClearHue 同一套值）：图标底色和图标色，分类行、入口图标用。 */
+enum class ViewHue(private val lightBg: Long, private val lightFg: Long, private val darkBg: Long, private val darkFg: Long) {
+    RED(0xFFFDE7E5, 0xFFC0392B, 0xFF3A1D1D, 0xFFFF8F86),
+    ORANGE(0xFFFDEBDD, 0xFFB85A12, 0xFF3A2716, 0xFFFFB27A),
+    AMBER(0xFFFBF0D3, 0xFF8A6200, 0xFF352C12, 0xFFF2C46B),
+    GREEN(0xFFE2F3E6, 0xFF237A3B, 0xFF17321F, 0xFF7ED69B),
+    TEAL(0xFFDCF1EE, 0xFF0B6E69, 0xFF13332F, 0xFF6FD8CB),
+    BLUE(0xFFE1ECFD, 0xFF2457A6, 0xFF172A44, 0xFF8DB8FF),
+    PURPLE(0xFFEEE7FD, 0xFF6542B5, 0xFF2B2042, 0xFFC3A6FF),
+    PINK(0xFFFDECF2, 0xFFB8245A, 0xFF3A1E2A, 0xFFFF8DAE),
+    GRAY(0xFFEEF0F2, 0xFF5E636B, 0xFF24262A, 0xFFA3A7AE);
+
+    fun bg(dark: Boolean): Int = (if (dark) darkBg else lightBg).toInt()
+    fun fg(dark: Boolean): Int = (if (dark) darkFg else lightFg).toInt()
+}
