@@ -61,6 +61,9 @@ import kotlinx.coroutines.flow.drop
 /** 页签页底部要让出的高度（悬浮底栏 + 系统导航条）；二级页是 0。 */
 val LocalTabBarInset = staticCompositionLocalOf { 0.dp }
 
+/** 仅悬浮底栏读取这项预算；调用方可在列表滚动期间暂停背景取景。 */
+val LocalTabBackdropEnabled = staticCompositionLocalOf<() -> Boolean> { { true } }
+
 /** 回到页签的次数，见 [rememberTabReturns]。 */
 private val LocalTabReturns = staticCompositionLocalOf<State<Int>> { mutableIntStateOf(0) }
 
@@ -163,7 +166,7 @@ private fun TabBase(
     tab: @Composable (ShellTab) -> Unit,
 ) {
     val backdrop = rememberLayerBackdrop()
-    val capture = Clear.glass && Glass.supported && shown.value
+    val capture = Clear.glass && Glass.supported && shown.value && LocalTabBackdropEnabled.current()
     val visited = remember { mutableStateListOf(current) }
     if (current !in visited) visited += current
     Box(Modifier.fillMaxSize()) {

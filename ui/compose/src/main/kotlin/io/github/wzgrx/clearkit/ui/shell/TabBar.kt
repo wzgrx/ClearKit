@@ -21,6 +21,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -65,6 +66,10 @@ fun GlassTabBar(tabs: List<ShellTab>, selected: Int, bottom: Dp, modifier: Modif
     var dragging by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val reduce = Clear.reduceMotion
+    // 手势协程跨越选中项变化，结束时读最新状态；不因切页重启正在拖动的手势。
+    val currentSelection by rememberUpdatedState(selected)
+    val selectCurrent by rememberUpdatedState(onSelect)
+    val reducedMotion by rememberUpdatedState(reduce)
     LaunchedEffect(selected) { if (!dragging) { if (reduce) pill.snapTo(selected.toFloat()) else pill.animateTo(selected.toFloat(), ClearSprings.pill) } }
     val c = Clear.colors
     Box(
@@ -85,11 +90,18 @@ fun GlassTabBar(tabs: List<ShellTab>, selected: Int, bottom: Dp, modifier: Modif
                     onDragEnd = {
                         dragging = false
                         val target = pill.value.roundToInt().coerceIn(0, tabs.lastIndex)
-                        if (target != selected) onSelect(target) else scope.launch { pill.animateTo(selected.toFloat(), ClearSprings.pill) }
+                        if (target != currentSelection) selectCurrent(target)
+                        else scope.launch {
+                            if (reducedMotion) pill.snapTo(currentSelection.toFloat())
+                            else pill.animateTo(currentSelection.toFloat(), ClearSprings.pill)
+                        }
                     },
                     onDragCancel = {
                         dragging = false
-                        scope.launch { pill.animateTo(selected.toFloat(), ClearSprings.pill) }
+                        scope.launch {
+                            if (reducedMotion) pill.snapTo(currentSelection.toFloat())
+                            else pill.animateTo(currentSelection.toFloat(), ClearSprings.pill)
+                        }
                     },
                 ) { change, dx ->
                     change.consume()
