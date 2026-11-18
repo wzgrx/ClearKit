@@ -362,6 +362,11 @@ private fun PageHost(
     val slide = remember(corner) { RoundedCornerShape(corner) }
     Box(
         Modifier.fillMaxSize().layout { measurable, constraints ->
+            // 保留组合和页面状态，完全离屏的深层页不参与新一轮屏幕测量。
+            // 上一页仍按 placed 参与返回/卡片转场，未约束场景沿用正常测量。
+            if (!placed.value && constraints.hasBoundedWidth && constraints.hasBoundedHeight) {
+                return@layout layout(constraints.maxWidth, constraints.maxHeight) { }
+            }
             val p = measurable.measure(constraints)
             layout(p.width, p.height) {
                 if (placed.value) {
