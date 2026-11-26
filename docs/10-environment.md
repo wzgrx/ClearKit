@@ -1,13 +1,13 @@
 # 10 · 开发环境（从一台空电脑开始）
 
 照着从上往下做，每一步都有“检查”命令，检查通过再做下一步。系统用 Linux 或 Windows 的 WSL2（Ubuntu）。
-版本号以模板里的 `gradle/libs.versions.toml` 和 `gradle/wrapper/gradle-wrapper.properties` 为准；下面写的是 2026-10 验证过的组合。
+版本号以模板里的 `gradle/libs.versions.toml` 和 `gradle/wrapper/gradle-wrapper.properties` 为准；下面写的是 2026-11-26 验证的组合。
 
 | 东西 | 版本（验证过） | 干什么用 |
 |---|---|---|
-| JDK | 21 或更新（用过 Temurin 27） | 跑 Gradle |
+| JDK | Temurin 27.0.1.1；依赖源码构建使用 JDK 17 | 跑 Gradle |
 | Android SDK | platform `android-37.2`、build-tools `37.0.0`、platform-tools | 编译、adb |
-| Gradle | 9.8.1（仓库自带 `./gradlew`，不用装） | 构建 |
+| Gradle | 9.9.2（仓库自带 `./gradlew`，不用装） | 构建 |
 | DexAdapt | `gradle/dexadapt.commit` 里记的提交 | 符号查询库，和项目并排放 |
 | jadx | 1.5 以上 | 反编译宿主找 Hook 点 |
 | Python | 3.10 以上 | 生成脚本、SVG 转换 |
@@ -133,10 +133,10 @@ chmod 600 ~/.config/<名>/signing.env
 
 ```bash
 sudo apt install -y cmake ninja-build clang
-scripts/build-dexkit-desktop.sh     # 检查：最后一行“完成：…/libdexkit.so”
+scripts/build-dexkit-desktop.sh     # 检查：固定源码版本和产物哈希核验完成
 ```
 
-没有它时这个测试自动跳过，不影响平时开发。
+DexKit 与 FlatBuffers 采用固定源码构建，使用 JDK 17、Maven 及 Android NDK 30.0.16248370。可通过 DEXKIT_BUILD_JAVA_HOME 指定 JDK 17，构建与缓存参数见 DexAdapt 的 docs/BUILDING.md。模板门禁会先检查依赖构建回执。
 
 ## 10. 真机（测试 Hook）
 

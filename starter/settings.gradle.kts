@@ -15,6 +15,15 @@ pluginManagement {
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
     repositories {
+        maven {
+            url = uri(System.getenv("DEXKIT_MAVEN_REPO")
+                ?: ((System.getenv("DEXKIT_SOURCE_HOME")
+                    ?: (System.getProperty("user.home") + "/tools/dexkit-source")) + "/maven"))
+            content {
+                includeModule("org.luckypray", "dexkit")
+                includeModule("com.google.flatbuffers", "flatbuffers-java")
+            }
+        }
         google()
         mavenCentral()
         maven { url = uri("https://api.xposed.info/") }

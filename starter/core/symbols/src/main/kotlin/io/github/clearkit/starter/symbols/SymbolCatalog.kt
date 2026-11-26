@@ -22,7 +22,7 @@ object SymbolCatalog {
      * 解析代码（DexAdapt 的 SymbolResolver、SymbolSource、DexKitSource，去掉注释和空白）的摘要，由 SymbolCatalogTest 守着：
      * 改了这几个文件，测试失败并给出新值，填回来即可。它算进 [fingerprint]，各手机上的本机表跟着重扫。
      */
-    const val RESOLVER_SOURCES = "ab2992555789007e"
+    const val RESOLVER_SOURCES = "1a23375e3d900b36"
 
     /**
      * 全部符号定义（id、查询、钉子、“某版本没有”）+ 解析器版本 + DexKit 版本的指纹。本机适配生成的表记下它，

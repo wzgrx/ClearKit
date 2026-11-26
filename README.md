@@ -28,6 +28,8 @@
 | 外部参考（libxposed、LSPosed、DexKit、同类项目） | [docs/references.md](docs/references.md) |
 | 检查清单 | [docs/checklists/](docs/checklists/) |
 
+当前 Android 模板使用 Gradle 9.9.2、AGP 9.5.3、Compose BOM 2026.11.01，并接入 DexAdapt 的公共依赖构建。[环境与依赖](docs/10-environment.md)
+
 ## 一条命令生成新模块
 
 ```bash
